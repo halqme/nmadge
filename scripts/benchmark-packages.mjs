@@ -1,7 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -69,7 +69,7 @@ async function packPackage({ destination, cwd, spec }) {
   };
 }
 
-async function installPackage({ consumer, packageName, tarball }) {
+async function installPackage({ consumer, packageName, tarball, resolutionDirectory }) {
   await rm(consumer, { force: true, recursive: true });
   await mkdir(consumer, { recursive: true });
   await writeFile(
@@ -85,18 +85,18 @@ async function installPackage({ consumer, packageName, tarball }) {
     ) + "\n",
     "utf8",
   );
-  await run(
-    npm,
-    [
-      "install",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      "--no-package-lock",
-      "--no-save",
-      tarball,
-    ],
-    consumer,
+  await run(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], consumer);
+  const { stdout: dependencyTreeOutput } = await run(npm, ["ls", "--all", "--json"], consumer);
+  const dependencyTree = JSON.parse(dependencyTreeOutput);
+  await writeFile(
+    join(resolutionDirectory, `${packageName}.npm-ls.json`),
+    JSON.stringify(dependencyTree, null, 2) + "\n",
+    "utf8",
+  );
+  await writeFile(
+    join(resolutionDirectory, `${packageName}.package-lock.json`),
+    await readFile(join(consumer, "package-lock.json"), "utf8"),
+    "utf8",
   );
   return directorySize(join(consumer, "node_modules"));
 }
@@ -105,9 +105,11 @@ const workspaceOption = optionValue("--workspace");
 const outputOption = optionValue("--output");
 const workspace = resolve(workspaceOption ?? (await mkdtemp(join(tmpdir(), "oxdg-benchmark-"))));
 const output = resolve(outputOption ?? join(projectRoot, "benchmark-package-sizes.json"));
+const resolutionDirectory = join(dirname(output), "benchmark-package-locks");
 await mkdir(workspace, { recursive: true });
 await mkdir(join(workspace, "packs"), { recursive: true });
 await mkdir(join(workspace, "consumers"), { recursive: true });
+await mkdir(resolutionDirectory, { recursive: true });
 await writeFile(
   join(workspace, "package.json"),
   JSON.stringify({ name: "oxdg-benchmark-workspace", private: true }) + "\n",
@@ -145,6 +147,7 @@ for (const definition of packageDefinitions) {
   const nodeModulesSize = await installPackage({
     consumer,
     packageName: definition.key,
+    resolutionDirectory,
     tarball: packed.tarball,
   });
   packages.push({
@@ -156,6 +159,8 @@ for (const definition of packageDefinitions) {
     tarballSizeBytes: packed.tarballSize,
     unpackedSizeBytes: packed.unpackedSize,
     nodeModulesSizeBytes: nodeModulesSize,
+    integrity: packed.integrity,
+    shasum: packed.shasum,
   });
 }
 

@@ -23,22 +23,23 @@ jobs:
       HYPERFINE_VERSION: 1.19.0
     steps:
       - name: Check out benchmarked source
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           ref: ${{ github.event.release.tag_name || github.ref }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install hyperfine
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@dfae9bf3d6f6c6f20ef4ebb3486c01a51341ff12 # v2.87.18
         with:
           tool: hyperfine@${{ env.HYPERFINE_VERSION }}
 
@@ -71,41 +72,55 @@ jobs:
       - name: Record benchmark environment
         shell: bash
         run: |
-          set -euo pipefail
-          oxdg_version="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).version)')"
-          hono_actual="$(git -C "$HONO_DIR" rev-parse HEAD)"
-          cat > benchmark-metadata.json <<EOF
-          {
-            "runner": "ubuntu-latest",
-            "workspace": {
-              "root": "$BENCHMARK_WORKSPACE",
-              "layout": "{hono,packs/{oxdg,madge,dpdm},consumers/{oxdg,madge,dpdm}}"
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          import { readFileSync, writeFileSync } from "node:fs";
+
+          const readCommand = (command, args = []) =>
+            execFileSync(command, args, { encoding: "utf8" }).trim();
+          const metadata = {
+            runner: {
+              label: "ubuntu-latest",
+              imageOS: process.env.ImageOS ?? "unknown",
+              imageVersion: process.env.ImageVersion ?? "unknown",
             },
-            "hono": {
-              "repository": "$HONO_REPOSITORY",
-              "commit": "$hono_actual"
+            workspace: {
+              root: process.env.BENCHMARK_WORKSPACE,
+              layout: "{hono,packs/{oxdg,madge,dpdm},consumers/{oxdg,madge,dpdm}}",
             },
-            "madge": "madge@$MADGE_VERSION",
-            "dpdm": "dpdm@$DPDM_VERSION",
-            "oxdg": {
-              "version": "$oxdg_version",
-              "source": "current checkout, bun run build, npm pack"
+            host: {
+              uname: readCommand("uname", ["-a"]),
+              lscpu: JSON.parse(readCommand("lscpu", ["-J"])),
             },
-            "node": {
-              "requested": "$NODE_VERSION",
-              "actual": "$(node --version)"
+            hono: {
+              repository: process.env.HONO_REPOSITORY,
+              commit: readCommand("git", ["-C", process.env.HONO_DIR, "rev-parse", "HEAD"]),
             },
-            "bun": {
-              "requested": "$BUN_VERSION",
-              "actual": "$(bun --version)"
+            madge: `madge@${process.env.MADGE_VERSION}`,
+            dpdm: `dpdm@${process.env.DPDM_VERSION}`,
+            oxdg: {
+              version: JSON.parse(readFileSync("package.json", "utf8")).version,
+              source: "current checkout, bun run build, npm pack",
             },
-            "hyperfine": {
-              "requested": "$HYPERFINE_VERSION",
-              "actual": "$(hyperfine --version)"
-            }
+            node: {
+              requested: process.env.NODE_VERSION,
+              actual: process.version,
+            },
+            bun: {
+              requested: process.env.BUN_VERSION,
+              actual: readCommand("bun", ["--version"]),
+            },
+            npm: readCommand("npm", ["--version"]),
+            hyperfine: {
+              requested: process.env.HYPERFINE_VERSION,
+              actual: readCommand("hyperfine", ["--version"]),
+            },
+          };
+          if (metadata.hono.commit !== process.env.HONO_COMMIT) {
+            throw new Error(`Hono commit ${metadata.hono.commit} does not match ${process.env.HONO_COMMIT}`);
           }
-          EOF
-          test "$hono_actual" = "$HONO_COMMIT"
+          writeFileSync("benchmark-metadata.json", `${JSON.stringify(metadata, null, 2)}\n`);
+          NODE
 
       - name: Run directory benchmark
         shell: bash
@@ -141,13 +156,15 @@ jobs:
             "",
             "| Input | Value |",
             "| --- | --- |",
-            `| Runner | ${metadata.runner} |`,
+            `| Runner | ${metadata.runner.label} |`,
+            `| Runner image | ${metadata.runner.imageOS} / ${metadata.runner.imageVersion} |`,
             `| Hono commit | \`${metadata.hono.commit}\` |`,
             `| Madge | ${metadata.madge} |`,
             `| dpdm | ${metadata.dpdm} |`,
             `| oxdg | oxdg@${metadata.oxdg.version} (${metadata.oxdg.source}) |`,
             `| Node.js | ${metadata.node.requested} (${metadata.node.actual}) |`,
             `| Bun | ${metadata.bun.requested} (${metadata.bun.actual}) |`,
+            `| npm | ${metadata.npm} |`,
             `| hyperfine | ${metadata.hyperfine.requested} (${metadata.hyperfine.actual}) |`,
             "",
             "### Directory-wide analysis",
@@ -168,13 +185,13 @@ jobs:
                 `| ${pkg.name}@${pkg.version} | ${formatBytes(pkg.unpackedSizeBytes)} | ${formatBytes(pkg.nodeModulesSizeBytes)} |`,
             ),
             "",
-            `Raw results and measurements are attached as the \`benchmark\` artifact.`,
+            `Raw results, dependency locks, and measurements are attached as the \`benchmark\` artifact.`,
           ];
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
           NODE
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: benchmark
           if-no-files-found: error
@@ -182,3 +199,4 @@ jobs:
             benchmark.json
             benchmark-metadata.json
             benchmark-package-sizes.json
+            benchmark-package-locks/

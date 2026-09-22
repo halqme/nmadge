@@ -1,7 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execFile = promisify(execFileCallback);
@@ -21,6 +21,14 @@ async function run(command, args, cwd) {
     });
   }
 }
+
+function optionValue(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+const outputDirectoryOption = optionValue("--output");
+const outputDirectory = outputDirectoryOption ? resolve(outputDirectoryOption) : undefined;
 
 try {
   const packDirectory = join(temporaryRoot, "pack");
@@ -78,7 +86,15 @@ try {
 
   await run(
     npm,
-    ["install", "--ignore-scripts", "--no-package-lock", "--no-save", tarball],
+    [
+      "install",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "--no-package-lock",
+      "--no-save",
+      tarball,
+    ],
     consumer,
   );
   const installedCli = await readFile(
@@ -120,6 +136,11 @@ try {
     !bunxSvg.includes("<marker")
   ) {
     throw new Error("packed CLI did not generate standalone SVG output");
+  }
+
+  if (outputDirectory) {
+    await mkdir(outputDirectory, { recursive: true });
+    await copyFile(tarball, join(outputDirectory, packResult.filename));
   }
 
   console.log(
