@@ -17,7 +17,7 @@
   "license": "MIT",
   "author": "HALQME",
   "bin": {
-    "nmadge": "./dist/cli/main.js"
+    "nmadge": "dist/cli/main.js"
   },
   "files": [
     "dist",
