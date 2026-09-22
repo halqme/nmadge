@@ -1,87 +1,8 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
 import { expect, test } from "bun:test";
 import { analyze } from "../src/analyzer/analyze.ts";
-import type { DependencyKind } from "../src/types.ts";
 import { extractImports } from "../src/analyzer/imports.ts";
-import { findCycles } from "../src/graph/cycles.ts";
-import { cyclicSubgraph, filterGraph } from "../src/graph/filter.ts";
-import {
-  findDirectDependencies,
-  findDirectDependents,
-  findLeaves,
-  findOrphans,
-} from "../src/graph/queries.ts";
-import { renderD2 } from "../src/render/d2.ts";
-import { renderJson } from "../src/render/json.ts";
-import { renderMermaid } from "../src/render/mermaid.ts";
-import { renderSvg } from "../src/render/svg.ts";
-import { renderText } from "../src/render/text.ts";
-
-async function createFixture(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "nmadge-test-"));
-  for (const [relativePath, source] of Object.entries(files)) {
-    const filePath = join(root, relativePath);
-    await mkdir(dirname(filePath), { recursive: true });
-    await writeFile(filePath, source, "utf8");
-  }
-  return root;
-}
-
-async function removeFixture(root: string): Promise<void> {
-  await rm(root, { recursive: true, force: true });
-}
-
-test("analyzes cycles, queries the graph, and renders deterministic formats", async () => {
-  const root = await createFixture({
-    "src/a.ts": 'import "./b.js";\n',
-    "src/b.ts": 'import "./c.js";\n',
-    "src/c.ts": 'import "./a.js";\n',
-    "src/leaf.ts": "export const leaf = true;\n",
-  });
-
-  try {
-    const result = await analyze("src", { cwd: root });
-    const modules = [...result.graph.nodes.keys()];
-
-    expect(modules).toEqual(["src/a.ts", "src/b.ts", "src/c.ts", "src/leaf.ts"]);
-    expect(findCycles(result.graph)).toEqual([{ modules: ["src/a.ts", "src/b.ts", "src/c.ts"] }]);
-    expect(findDirectDependencies(result.graph, "src/a.ts")).toEqual(["src/b.ts"]);
-    expect(findDirectDependents(result.graph, "src/a.ts")).toEqual(["src/c.ts"]);
-    expect(findLeaves(result.graph)).toEqual(["src/leaf.ts"]);
-    expect(findOrphans(result.graph)).toEqual(["src/leaf.ts"]);
-    expect([...cyclicSubgraph(result.graph).nodes.keys()]).toEqual([
-      "src/a.ts",
-      "src/b.ts",
-      "src/c.ts",
-    ]);
-    expect([...filterGraph(result.graph, (node) => node.id !== "src/c.ts").nodes.keys()]).toEqual([
-      "src/a.ts",
-      "src/b.ts",
-      "src/leaf.ts",
-    ]);
-
-    const json = JSON.parse(renderJson(result.graph)) as {
-      modules: { id: string }[];
-      dependencies: { from: string; to?: string }[];
-    };
-    expect(json.modules.map((module) => module.id)).toEqual(modules);
-    expect(json.dependencies[0]).toMatchObject({
-      from: "src/a.ts",
-      to: "src/b.ts",
-    });
-    expect(renderText(result.graph)).toContain("src/a.ts\n  -> src/b.ts");
-    expect(renderMermaid(result.graph)).toContain('n0["src/a.ts"]');
-    expect(renderD2(result.graph)).toContain('n0: "src/a.ts"');
-    const svg = renderSvg(result.graph);
-    expect(svg).toContain("<marker");
-    expect(svg).toContain("src/a.ts");
-    expect(svg).toContain('<g transform="translate(0 24)">');
-  } finally {
-    await removeFixture(root);
-  }
-});
+import type { DependencyKind } from "../src/types.ts";
+import { createFixture, removeFixture } from "./fixtures.ts";
 
 test("extracts static, dynamic, CommonJS, and type-only references", () => {
   const result = extractImports(
@@ -155,8 +76,15 @@ test("classifies builtins, missing files, and optional type imports", async () =
   }
 });
 
-test("resolves modern module forms, path aliases, and conditional package exports", async () => {
+test("resolves modern module forms, path aliases, conditional exports, and package imports", async () => {
   const root = await createFixture({
+    "package.json": JSON.stringify({
+      name: "fixture-app",
+      type: "module",
+      imports: {
+        "#foo": "./src/imported.ts",
+      },
+    }),
     "tsconfig.json": JSON.stringify({
       compilerOptions: {
         baseUrl: ".",
@@ -172,6 +100,7 @@ test("resolves modern module forms, path aliases, and conditional package export
       'export { foo } from "./reexport.js";',
       'import type { Foo } from "./types.js";',
       'import { aliased } from "@/aliased";',
+      'import "#foo";',
       'import "fixture-package";',
       'require("fixture-package");',
       'require.resolve("fixture-package");',
@@ -182,6 +111,7 @@ test("resolves modern module forms, path aliases, and conditional package export
     "src/reexport.js": "export const foo = true;\n",
     "src/types.ts": "export interface Foo { value: string }\n",
     "src/aliased.ts": "export const aliased = true;\n",
+    "src/imported.ts": "export const imported = true;\n",
     "node_modules/fixture-package/package.json": JSON.stringify({
       name: "fixture-package",
       type: "module",
@@ -230,6 +160,10 @@ test("resolves modern module forms, path aliases, and conditional package export
     });
     expect(edgeFor("@/aliased", "import")).toMatchObject({
       to: "src/aliased.ts",
+      status: "internal",
+    });
+    expect(edgeFor("#foo", "import")).toMatchObject({
+      to: "src/imported.ts",
       status: "internal",
     });
     expect(edgeFor("fixture-package", "import")).toMatchObject({
