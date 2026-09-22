@@ -89,6 +89,8 @@ Use this structure:
 │   │   ├── svg.ts
 │   │   └── text.ts
 │   └── types.ts
+├── test
+│   └── nmadge.test.ts
 ├── tsconfig.build.json
 ├── tsconfig.json
 └── tsconfig.test.json
