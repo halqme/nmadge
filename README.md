@@ -1,81 +1,137 @@
 # oxdg
 
-A modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by [Madge](https://github.com/pahen/madge).
+A fast, lightweight dependency graph CLI for modern JavaScript and TypeScript, built on [Oxc](https://oxc.rs/).
 
-oxdg = Oxc Dependency Graph
+**oxdg = Oxc Dependency Graph**
 
-A modern dependency graph CLI inspired by Madge,
-built around the Oxc ecosystem.
+oxdg uses `oxc-parser` and `oxc-resolver` for parsing and module resolution, then adds a small graph layer for dependency analysis, queries, and rendering.
 
-Try
+No initialization. No required config file. No system Graphviz dependency.
 
-```
+Try it:
+
+```bash
 npx oxdg src/index.ts --image graph.svg
 ```
 
-![npx oxdg src/index.ts --image graph.svg](./graph.svg)
+![npx oxdg src/index.ts --image graph.svg](https://raw.githubusercontent.com/halqme/oxdg/refs/heads/main/graph.svg)
+
+## Features
+
+- JavaScript and TypeScript
+- ESM and CommonJS
+- Static imports, dynamic imports, `require()`, `require.resolve()`, and re-exports
+- Type-only imports and TypeScript path aliases
+- Circular dependency detection
+- Text, JSON, Mermaid, D2, and standalone SVG output
+- Zero-config one-shot CLI
+- No Graphviz or other system package required for SVG generation
+
+## Performance
+
+oxdg is intentionally thin: Oxc handles parsing and module resolution, while oxdg focuses on building and querying the dependency graph.
+
+On the Hono v4.13.8 source tree, local `hyperfine` benchmarks produced the following results.
+
+### Directory-wide analysis
+
+| Tool        |         Mean |
+| ----------- | -----------: |
+| oxdg@0.1.0  | **316.5 ms** |
+| dpdm@4.3.0  |     488.2 ms |
+| Madge@8.0.0 |     954.3 ms |
+
+In this run, oxdg was **1.54× faster than dpdm** and **3.01× faster than Madge**.
+
+```bash
+hyperfine --warmup 8 \
+  'bunx --no-install madge --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src' \
+  'bunx --no-install oxdg src' \
+  "bunx --no-install dpdm 'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}'"
+```
+
+### Entrypoint analysis
+
+| Tool        |        Mean |
+| ----------- | ----------: |
+| oxdg@0.1.0  | **81.5 ms** |
+| dpdm@4.3.0  |    239.7 ms |
+| Madge@8.0.0 |    336.8 ms |
+
+In this run, oxdg was **2.94× faster than dpdm** and **4.13× faster than Madge**.
+
+```bash
+hyperfine --warmup 8 \
+  'bunx --no-install madge src/index.ts' \
+  'bunx --no-install oxdg src/index.ts' \
+  'bunx --no-install dpdm src/index.ts'
+```
+
+These are local measurements on one project and should not be treated as universal performance claims. The commands are included so the comparison can be reproduced on other projects and machines.
+
+## Package footprint
+
+oxdg keeps its own package roughly the same size as Madge while requiring a much smaller installed dependency tree.
+
+| Tool        | Package only | Package + dependencies |
+| ----------- | -----------: | ---------------------: |
+| Madge@8.0.0 |       103 KB |                 102 MB |
+| oxdg@0.1.0  |       104 KB |               **3 MB** |
+
+The package itself is almost the same size, while the installed dependency footprint is roughly **34× smaller** in this comparison.
 
 ## How it compares
 
-oxdg is inspired by [Madge](https://github.com/pahen/madge), but uses a modern
-JavaScript/TypeScript stack and provides built-in Mermaid, D2, and standalone SVG
-output.
+oxdg is inspired by [Madge](https://github.com/pahen/madge), but is built around the modern Oxc parser and resolver and includes Mermaid, D2, and standalone SVG output.
 
-The following is a high-level feature comparison with related tools. It is
-directional rather than a benchmark and was checked against the linked public
-documentation on 2026-09-22.
+The table below focuses on documented capabilities rather than overall ratings. It was checked against the linked public documentation on 2026-09-22.
 
-| Criterion                     | [Madge](https://github.com/pahen/madge) | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | [dpdm](https://github.com/acrazing/dpdm) | [module-graph](https://github.com/thepassle/module-graph) | oxdg |
-| ----------------------------- | --------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------- | ---- |
-| Active maintenance            | △                                       | ◎                                                                    | ◎                                        | ○                                                         | —    |
-| JavaScript / TypeScript       | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎    |
-| ESM                           | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎    |
-| CommonJS                      | ○                                       | ◎                                                                    | ◎                                        | ×                                                         | ◎    |
-| Circular dependency detection | ◎                                       | ◎                                                                    | ◎                                        | Not a primary focus                                       | ◎    |
-| Mermaid                       | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎    |
-| D2                            | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎    |
-| Direct SVG output             | Graphviz                                | Graphviz                                                             | ×                                        | ×                                                         | ◎    |
-| SVG without system Graphviz   | ×                                       | ×                                                                    | —                                        | —                                                         | ◎    |
-| Lightweight CLI               | ◎                                       | △                                                                    | ◎                                        | Library-oriented                                          | ◎    |
+| Capability                             | [Madge](https://github.com/pahen/madge) | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | [dpdm](https://github.com/acrazing/dpdm) | [module-graph](https://github.com/thepassle/module-graph) | oxdg       |
+| -------------------------------------- | --------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------- | ---------- |
+| JavaScript / TypeScript                | Yes                                     | Yes                                                                  | Yes                                      | Yes                                                       | Yes        |
+| ESM                                    | Yes                                     | Yes                                                                  | Yes                                      | Yes                                                       | Yes        |
+| CommonJS `require()`                   | Yes                                     | Yes                                                                  | Yes                                      | No                                                        | Yes        |
+| Circular dependency detection          | Yes                                     | Yes                                                                  | Yes                                      | Not a primary focus                                       | Yes        |
+| JSON output                            | Yes                                     | Yes                                                                  | Yes                                      | API-oriented                                              | Yes        |
+| Mermaid output                         | No                                      | Yes                                                                  | No                                       | No                                                        | Yes        |
+| D2 output                              | No                                      | Yes                                                                  | No                                       | No                                                        | Yes        |
+| SVG output                             | Graphviz                                | Graphviz                                                             | No                                       | No                                                        | Standalone |
+| System Graphviz required for SVG       | Yes                                     | Yes                                                                  | —                                        | —                                                         | No         |
+| Basic CLI works without project config | Yes                                     | `--no-config` required                                               | Yes                                      | Yes                                                       | Yes        |
 
-`◎` means a strong fit, `○` supported, `△` partial or requiring more setup,
-`×` not documented or not supported, and `—` not rated or not applicable.
+`dependency-cruiser` provides a substantially broader architecture-validation and rule system than oxdg. oxdg instead focuses on dependency graph analysis as a small, one-shot CLI.
 
-- `Graphviz` in the SVG row means the external Graphviz executable is required.
-- `—` in the SVG row means the tool does not document SVG output; this row does not judge whether its other reports can run without Graphviz.
-- dependency-cruiser's D2 reporter is documented in its [CLI reference](https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md#d2).
-- `module-graph` refers to `@thepassle/module-graph`; its documented analyzer is ESM-first and does not analyze `require()`.
+`module-graph` refers to `@thepassle/module-graph`; its documented analyzer is ESM-oriented and does not analyze `require()`.
 
 ## One-shot CLI
 
-Generate a standalone SVG without installing Graphviz or any other system package:
+Analyze a file or directory:
+
+```bash
+bunx oxdg ./src
+```
+
+Generate a standalone SVG:
 
 ```bash
 bunx oxdg ./src/index.ts --image graph.svg
 ```
 
-This writes the generated graph to `graph.svg`, ready to open in a browser or share.
+The resulting SVG is ready to open in a browser or share directly. No Graphviz installation is required.
 
-Find circular dependencies in a directory:
+Find circular dependencies:
 
 ```bash
 bunx oxdg ./src --circular
 ```
 
-Example output:
+Example:
 
 ```text
 src/a.ts -> src/b.ts -> src/a.ts
 ```
 
-The same one-shot commands work with `npx`:
-
-```bash
-npx oxdg ./src/index.ts --image graph.svg
-```
-
-Without an output option, `oxdg` prints a plain-text dependency graph. Other
-useful output modes are:
+Use structured or graph-oriented output:
 
 ```bash
 bunx oxdg ./src --json
@@ -83,21 +139,55 @@ bunx oxdg ./src --mermaid
 bunx oxdg ./src --d2
 ```
 
-The CLI needs no configuration file, initialization step, persistent state, or
-system Graphviz installation. It resolves modern JavaScript and TypeScript
-imports, CommonJS requires, dynamic imports, re-exports, type-only imports,
-and TypeScript path aliases.
+The same commands work with `npx`:
 
-Additional analysis options are `--cwd`, `--tsconfig`, `--include-npm`, and
-`--no-type-imports`. Analysis warnings are written to stderr; structured output
-remains on stdout.
+```bash
+npx oxdg ./src
+npx oxdg ./src/index.ts --image graph.svg
+```
+
+Without an output option, oxdg prints a plain-text dependency graph.
+
+Additional analysis options include `--cwd`, `--tsconfig`, `--include-npm`, and `--no-type-imports`.
+
+Warnings are written to stderr, so structured output on stdout remains usable by scripts and coding agents.
+
+## Design
+
+oxdg deliberately leaves parsing and module resolution to Oxc.
+
+```text
+source files
+    ↓
+oxc-parser
+    ↓
+dependency extraction
+    ↓
+oxc-resolver
+    ↓
+ModuleGraph
+    ├── queries
+    ├── cycle detection
+    ├── text
+    ├── JSON
+    ├── Mermaid
+    ├── D2
+    └── SVG
+```
+
+This keeps oxdg focused on the dependency-graph layer rather than maintaining its own JavaScript parser or module resolver.
 
 ## Installation
 
-For repeated use in a project, install `oxdg` with npm or Bun:
+For repeated use in a project:
 
 ```bash
 npm install --save-dev oxdg
+```
+
+or:
+
+```bash
 bun add --dev oxdg
 ```
 
@@ -105,19 +195,20 @@ The published CLI requires Node.js 22 or newer.
 
 ## API
 
-The public API is a small functional layer over the same `ModuleGraph` used by
-the CLI:
+The public API is a small functional layer over the same `ModuleGraph` used by the CLI:
 
 ```ts
 import { analyze, findCycles, renderSvg } from "oxdg";
 
 const { graph, warnings } = await analyze("./src");
+
 const cycles = findCycles(graph);
 const svg = renderSvg(graph);
 ```
 
 The API also exposes graph queries and text, JSON, Mermaid, and D2 renderers.
-Module IDs are stable paths relative to the analysis root.
+
+Module IDs are normalized paths relative to the analysis root.
 
 ## Development
 
@@ -126,13 +217,13 @@ bun install
 bun run check
 bun run lint
 bun run format:check
-bun run build
 bun test
+bun run build
 bun run release:check
 ```
 
-`check` runs TypeScript type checking. `build` uses `tsdown` to create a clean
-ESM distribution with declarations and source maps. `release:check` packs the
-package, checks its contents, installs the packed artifact in a temporary
-project, and runs the packaged CLI including version, cycles, JSON, and SVG
-checks.
+`check` runs TypeScript type checking.
+
+`build` uses `tsdown` to produce the ESM distribution, declarations, and source maps.
+
+`release:check` packs the package, validates the published contents, installs the packed artifact into a temporary project, and exercises the packaged CLI including version, circular dependency, JSON, and SVG checks.
