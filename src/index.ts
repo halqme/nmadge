@@ -26,10 +26,13 @@ export type {
   DependencyEdge,
   DependencyKind,
   DependencyStatus,
+  ExcludePattern,
+  GraphDirection,
   ModuleGraph,
   ModuleId,
   ModuleNode,
 } from "./types.ts";
 
 export type { Cycle } from "./graph/cycles.ts";
+export type { MermaidRenderOptions } from "./render/mermaid.ts";
 export type { SvgRenderOptions } from "./render/svg.ts";

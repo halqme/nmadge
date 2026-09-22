@@ -4,6 +4,7 @@ import { discoverFiles, DEFAULT_EXTENSIONS } from "./discover.ts";
 import { extractImports } from "./imports.ts";
 import type { ImportReference } from "./imports.ts";
 import { createResolver } from "./resolver.ts";
+import { createExcludeMatcher } from "./exclude.ts";
 import { createGraphBuilder } from "../graph/graph.ts";
 import type {
   AnalysisResult,
@@ -80,10 +81,15 @@ export async function analyze(
   const extensions = normalizeExtensions(options.extensions ?? DEFAULT_EXTENSIONS);
   const includeNpm = options.includeNpm ?? false;
   const includeTypeImports = options.includeTypeImports ?? true;
+  const excludeMatcher = createExcludeMatcher(options.exclude);
+  const isExcluded = (filePath: string): boolean =>
+    excludeMatcher(filePath) ||
+    excludeMatcher(relative(canonicalRoot, filePath).split(sep).join("/"));
   const files = await discoverFiles(input, {
     cwd,
     includeNpm,
     extensions,
+    exclude: isExcluded,
   });
 
   if (files.length === 0) {
@@ -137,6 +143,9 @@ export async function analyze(
       let edge: DependencyEdge;
       if (resolution.status === "internal") {
         const targetPath = await canonicalPath(resolve(resolution.absolutePath));
+        if (isExcluded(targetPath)) {
+          continue;
+        }
         const targetId = moduleId(canonicalRoot, targetPath);
         edge = {
           from: id,

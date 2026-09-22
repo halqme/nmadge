@@ -22,7 +22,8 @@ npx oxdg src/index.ts --image graph.svg
 - ESM and CommonJS
 - Static imports, dynamic imports, `require()`, `require.resolve()`, and re-exports
 - Type-only imports and TypeScript path aliases
-- Circular dependency detection
+- Circular dependency detection with CI-friendly failure codes
+- Orphan, leaf, and direct-dependent queries
 - Text, JSON, Mermaid, D2, and standalone SVG output
 - Zero-config one-shot CLI
 - No Graphviz or other system package required for SVG generation
@@ -123,7 +124,10 @@ Find circular dependencies:
 
 ```bash
 bunx oxdg ./src --circular
+bunx oxdg ./src --fail-on-circular
 ```
+
+`--fail-on-circular` exits with code 1 when a cycle exists. Successful analysis exits with 0; invalid command usage exits with 2.
 
 Example:
 
@@ -131,12 +135,21 @@ Example:
 src/a.ts -> src/b.ts -> src/a.ts
 ```
 
+Query the graph:
+
+```bash
+bunx oxdg ./src --orphans
+bunx oxdg ./src --leaves
+bunx oxdg ./src --depends src/core.ts
+```
+
 Use structured or graph-oriented output:
 
 ```bash
 bunx oxdg ./src --json
-bunx oxdg ./src --mermaid
+bunx oxdg ./src --mermaid --rankdir TB
 bunx oxdg ./src --d2
+bunx oxdg ./src --image graph.svg --rankdir TB
 ```
 
 The same commands work with `npx`:
@@ -148,7 +161,9 @@ npx oxdg ./src/index.ts --image graph.svg
 
 Without an output option, oxdg prints a plain-text dependency graph.
 
-Additional analysis options include `--cwd`, `--tsconfig`, `--include-npm`, and `--no-type-imports`.
+Additional analysis options include `--cwd`, `--tsconfig` (or `--ts-config`), `--include-npm`, `--no-type-imports`, `--extensions ts,tsx`, and repeated `--exclude` glob or regular-expression patterns. Glob exclusions match path suffixes; regular expressions are applied to normalized module paths. For example, use `--exclude '**/*.test.ts'` for a glob or `--exclude '/generated\.ts$/'` for a regular expression.
+
+Short aliases include `-c`, `-j`, `-i`, and `-d`. `--rankdir` accepts `LR`, `RL`, `TB`, or `BT` for Mermaid and SVG output.
 
 Warnings are written to stderr, so structured output on stdout remains usable by scripts and coding agents.
 

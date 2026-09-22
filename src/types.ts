@@ -1,5 +1,9 @@
 export type ModuleId = string;
 
+export type ExcludePattern = string | RegExp;
+
+export type GraphDirection = "LR" | "RL" | "TB" | "BT";
+
 export type DependencyKind =
   | "import"
   | "dynamic-import"
@@ -68,6 +72,9 @@ export interface AnalyzeOptions {
 
   /** Source file extensions. */
   extensions?: readonly string[];
+
+  /** Glob or regular-expression pattern(s) for excluded modules. */
+  exclude?: ExcludePattern | readonly ExcludePattern[];
 }
 
 export type AnalyzeInput = string | readonly string[];

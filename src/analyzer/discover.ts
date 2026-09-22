@@ -17,6 +17,7 @@ export interface RequiredDiscoveryOptions {
   cwd: string;
   includeNpm: boolean;
   extensions: readonly string[];
+  exclude?: (filePath: string) => boolean;
 }
 
 function compareStrings(left: string, right: string): number {
@@ -43,6 +44,7 @@ async function addDirectoryFiles(
   directory: string,
   extensions: ReadonlySet<string>,
   includeNpm: boolean,
+  exclude: (filePath: string) => boolean,
   files: Set<string>,
 ): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -55,13 +57,16 @@ async function addDirectoryFiles(
 
     const entryPath = join(directory, entry.name);
     if (entry.isDirectory()) {
-      await addDirectoryFiles(entryPath, extensions, includeNpm, files);
+      await addDirectoryFiles(entryPath, extensions, includeNpm, exclude, files);
       continue;
     }
 
     if (entry.isFile()) {
       if (isSupportedFile(entryPath, extensions)) {
-        files.add(await realpath(entryPath));
+        const resolvedPath = await realpath(entryPath);
+        if (!exclude(resolvedPath)) {
+          files.add(resolvedPath);
+        }
       }
       continue;
     }
@@ -72,7 +77,10 @@ async function addDirectoryFiles(
 
     const target = await stat(entryPath);
     if (target.isFile() && isSupportedFile(entryPath, extensions)) {
-      files.add(await realpath(entryPath));
+      const resolvedPath = await realpath(entryPath);
+      if (!exclude(resolvedPath)) {
+        files.add(resolvedPath);
+      }
     }
   }
 }
@@ -81,6 +89,7 @@ async function inspectInput(
   inputPath: string,
   extensions: ReadonlySet<string>,
   includeNpm: boolean,
+  exclude: (filePath: string) => boolean,
   files: Set<string>,
 ): Promise<void> {
   const absolutePath = resolve(inputPath);
@@ -92,20 +101,26 @@ async function inspectInput(
   if (link.isSymbolicLink()) {
     const target = await stat(absolutePath);
     if (target.isFile() && isSupportedFile(absolutePath, extensions)) {
-      files.add(await realpath(absolutePath));
+      const resolvedPath = await realpath(absolutePath);
+      if (!exclude(resolvedPath)) {
+        files.add(resolvedPath);
+      }
     }
     return;
   }
 
   if (link.isFile()) {
     if (isSupportedFile(absolutePath, extensions)) {
-      files.add(await realpath(absolutePath));
+      const resolvedPath = await realpath(absolutePath);
+      if (!exclude(resolvedPath)) {
+        files.add(resolvedPath);
+      }
     }
     return;
   }
 
   if (link.isDirectory()) {
-    await addDirectoryFiles(absolutePath, extensions, includeNpm, files);
+    await addDirectoryFiles(absolutePath, extensions, includeNpm, exclude, files);
   }
 }
 
@@ -116,11 +131,12 @@ export async function discoverFiles(
   const extensions = normalizeExtensions(options.extensions);
   const inputs = typeof input === "string" ? [input] : input;
   const files = new Set<string>();
+  const exclude = options.exclude ?? (() => false);
 
   for (const entry of inputs) {
     const absolutePath = resolve(options.cwd, entry);
     try {
-      await inspectInput(absolutePath, extensions, options.includeNpm, files);
+      await inspectInput(absolutePath, extensions, options.includeNpm, exclude, files);
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ENOENT") {
         throw new Error(`Input path does not exist: ${entry}`);

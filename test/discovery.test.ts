@@ -40,3 +40,24 @@ test("excludes .git and node_modules, deduplicates inputs, and does not follow d
     await removeFixture(outside);
   }
 });
+
+test("excludes imported modules with suffix globs and regular expressions", async () => {
+  const root = await createFixture({
+    "src/entry.ts": ['import "./generated.js";', 'import "./keep.js";'].join("\n"),
+    "src/generated.ts": "export const generated = true;\n",
+    "src/keep.ts": "export const keep = true;\n",
+  });
+
+  try {
+    const globResult = await analyze("src", { cwd: root, exclude: ["generated.ts"] });
+    expect([...globResult.graph.nodes.keys()]).toEqual(["src/entry.ts", "src/keep.ts"]);
+    expect(globResult.graph.edges).toEqual([
+      expect.objectContaining({ from: "src/entry.ts", to: "src/keep.ts", status: "internal" }),
+    ]);
+
+    const regexResult = await analyze("src", { cwd: root, exclude: ["/keep\\.ts$/"] });
+    expect([...regexResult.graph.nodes.keys()]).toEqual(["src/entry.ts", "src/generated.ts"]);
+  } finally {
+    await removeFixture(root);
+  }
+});

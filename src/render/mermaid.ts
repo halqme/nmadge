@@ -1,4 +1,8 @@
-import type { ModuleGraph } from "../types.ts";
+import type { GraphDirection, ModuleGraph } from "../types.ts";
+
+export interface MermaidRenderOptions {
+  direction?: GraphDirection;
+}
 
 function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -13,10 +17,10 @@ function escapeLabel(label: string): string {
     .replaceAll("\n", "&#10;");
 }
 
-export function renderMermaid(graph: ModuleGraph): string {
+export function renderMermaid(graph: ModuleGraph, options: MermaidRenderOptions = {}): string {
   const nodes = [...graph.nodes.keys()].sort(compareStrings);
   const ids = new Map(nodes.map((module, index) => [module, `n${index}`]));
-  const lines = ["flowchart LR"];
+  const lines = [`flowchart ${options.direction ?? "LR"}`];
 
   for (const module of nodes) {
     const nodeId = ids.get(module);

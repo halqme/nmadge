@@ -32,8 +32,10 @@ test("renders graph formats with stable module ordering", async () => {
     });
     expect(renderText(result.graph)).toContain("src/a.ts\n  -> src/b.ts");
     expect(renderMermaid(result.graph)).toContain('n0["src/a.ts"]');
+    expect(renderMermaid(result.graph, { direction: "TB" })).toStartWith("flowchart TB");
     expect(renderD2(result.graph)).toContain('n0: "src/a.ts"');
-    const svg = renderSvg(result.graph);
+    const svg = renderSvg(result.graph, { direction: "BT" });
+    expect(svg).not.toBe(renderSvg(result.graph));
     expect(svg).toContain("<marker");
     expect(svg).toContain("src/a.ts");
     expect(svg).toContain('<g transform="translate(0 24)">');
