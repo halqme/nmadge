@@ -2,6 +2,36 @@
 
 A modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by madge.
 
+## How it compares
+
+nmadge is inspired by [Madge](https://github.com/pahen/madge), but uses a modern
+JavaScript/TypeScript stack and provides built-in Mermaid, D2, and standalone SVG
+output.
+
+The following is a high-level feature comparison with related tools. It is
+directional rather than a benchmark and was checked against the linked public
+documentation on 2026-09-22.
+
+| Criterion                     | [Madge](https://github.com/pahen/madge) | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | [dpdm](https://github.com/acrazing/dpdm) | [module-graph](https://github.com/thepassle/module-graph) | nmadge |
+| ----------------------------- | --------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------- | ------ |
+| Active maintenance            | △                                       | ◎                                                                    | ◎                                        | ○                                                         | —      |
+| JavaScript / TypeScript       | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎      |
+| ESM                           | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎      |
+| CommonJS                      | ○                                       | ◎                                                                    | ◎                                        | ×                                                         | ◎      |
+| Circular dependency detection | ◎                                       | ◎                                                                    | ◎                                        | Not a primary focus                                       | ◎      |
+| Mermaid                       | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎      |
+| D2                            | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎      |
+| Direct SVG output             | Graphviz                                | Graphviz                                                             | ×                                        | ×                                                         | ◎      |
+| No system Graphviz required   | ×                                       | ×                                                                    | ◎                                        | ◎                                                         | ◎      |
+| Lightweight CLI               | ◎                                       | △                                                                    | ◎                                        | Library-oriented                                          | ◎      |
+
+`◎` means a strong fit, `○` supported, `△` partial or requiring more setup,
+`×` not documented or not supported, and `—` not rated.
+
+- `Graphviz` in the SVG row means the external Graphviz executable is required.
+- The `No system Graphviz required` row is independent of SVG: dpdm and module-graph do not document SVG output, but neither tool requires a system Graphviz installation.
+- `module-graph` refers to `@thepassle/module-graph`; its documented analyzer is ESM-first and does not analyze `require()`.
+
 ## One-shot CLI
 
 Generate a standalone SVG without installing Graphviz or any other system package:
