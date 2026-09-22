@@ -8,6 +8,7 @@ A modern dependency graph CLI inspired by Madge,
 built around the Oxc ecosystem.
 
 Try
+
 ```
 npx oxdg src/index.ts --image graph.svg
 ```
@@ -25,17 +26,17 @@ directional rather than a benchmark and was checked against the linked public
 documentation on 2026-09-22.
 
 | Criterion                     | [Madge](https://github.com/pahen/madge) | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | [dpdm](https://github.com/acrazing/dpdm) | [module-graph](https://github.com/thepassle/module-graph) | oxdg |
-| ----------------------------- | --------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------- | ------ |
-| Active maintenance            | △                                       | ◎                                                                    | ◎                                        | ○                                                         | —      |
-| JavaScript / TypeScript       | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎      |
-| ESM                           | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎      |
-| CommonJS                      | ○                                       | ◎                                                                    | ◎                                        | ×                                                         | ◎      |
-| Circular dependency detection | ◎                                       | ◎                                                                    | ◎                                        | Not a primary focus                                       | ◎      |
-| Mermaid                       | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎      |
-| D2                            | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎      |
-| Direct SVG output             | Graphviz                                | Graphviz                                                             | ×                                        | ×                                                         | ◎      |
-| SVG without system Graphviz   | ×                                       | ×                                                                    | —                                        | —                                                         | ◎      |
-| Lightweight CLI               | ◎                                       | △                                                                    | ◎                                        | Library-oriented                                          | ◎      |
+| ----------------------------- | --------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------- | ---- |
+| Active maintenance            | △                                       | ◎                                                                    | ◎                                        | ○                                                         | —    |
+| JavaScript / TypeScript       | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎    |
+| ESM                           | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎    |
+| CommonJS                      | ○                                       | ◎                                                                    | ◎                                        | ×                                                         | ◎    |
+| Circular dependency detection | ◎                                       | ◎                                                                    | ◎                                        | Not a primary focus                                       | ◎    |
+| Mermaid                       | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎    |
+| D2                            | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎    |
+| Direct SVG output             | Graphviz                                | Graphviz                                                             | ×                                        | ×                                                         | ◎    |
+| SVG without system Graphviz   | ×                                       | ×                                                                    | —                                        | —                                                         | ◎    |
+| Lightweight CLI               | ◎                                       | △                                                                    | ◎                                        | Library-oriented                                          | ◎    |
 
 `◎` means a strong fit, `○` supported, `△` partial or requiring more setup,
 `×` not documented or not supported, and `—` not rated or not applicable.
