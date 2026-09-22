@@ -1,13 +1,16 @@
 {
   "name": "oxdg",
   "version": "0.1.0",
-  "description": "Modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by madge",
+  "description": "Fast, lightweight dependency graph CLI for JavaScript and TypeScript, built on Oxc",
   "keywords": [
     "circular-dependency",
     "dependency",
     "dependency-graph",
     "javascript",
     "madge",
+    "module-graph",
+    "oxc",
+    "static-analysis",
     "typescript"
   ],
   "homepage": "https://github.com/halqme/oxdg#readme",
@@ -16,6 +19,10 @@
   },
   "license": "MIT",
   "author": "HALQME",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/halqme/oxdg.git"
+  },
   "bin": {
     "oxdg": "dist/cli/main.js"
   },
@@ -61,6 +68,5 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "packageManager": "bun@1.4.2",
-  "url": "git+https://github.com/halqme/oxdg.git"
+  "packageManager": "bun@1.4.2"
 }
