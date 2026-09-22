@@ -3,6 +3,8 @@ import { ResolverFactory } from "oxc-resolver";
 import { DEFAULT_EXTENSIONS } from "./discover.ts";
 import type { AnalyzeOptions, DependencyKind } from "../types.ts";
 
+const JSON_EXTENSION = ".json";
+
 export type ResolveResult =
   | { status: "internal"; absolutePath: string }
   | { status: "external" }
@@ -21,6 +23,10 @@ function normalizeExtensions(extensions: readonly string[]): string[] {
 
 function isSupportedFile(filePath: string, extensions: ReadonlySet<string>): boolean {
   return extensions.has(extname(filePath).toLowerCase());
+}
+
+function isJsonFile(filePath: string): boolean {
+  return extname(filePath).toLowerCase() === JSON_EXTENSION;
 }
 
 function isNodeModulesPath(filePath: string): boolean {
@@ -75,7 +81,7 @@ export function createResolver(options: AnalyzeOptions): Resolver {
     ),
   );
   const esmFactory = new ResolverFactory(
-    createResolverOptions(options, extensions, ["node", "import"]),
+    createResolverOptions(options, [...extensions, JSON_EXTENSION], ["node", "import"]),
   );
   const cjsFactory = esmFactory.cloneWithOptions({
     conditionNames: ["node", "require"],
@@ -94,6 +100,9 @@ export function createResolver(options: AnalyzeOptions): Resolver {
       if (result.path) {
         const absolutePath = resolve(result.path);
         if (!includeNpm && isNodeModulesPath(absolutePath)) {
+          return { status: "external" };
+        }
+        if (isJsonFile(absolutePath)) {
           return { status: "external" };
         }
         if (!isSupportedFile(absolutePath, supportedExtensions)) {

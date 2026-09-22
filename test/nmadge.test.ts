@@ -249,3 +249,26 @@ test("resolves modern module forms, path aliases, and conditional package export
     await removeFixture(root);
   }
 });
+
+test("resolves JSON dependencies without unsupported-file warnings", async () => {
+  const root = await createFixture({
+    "src/entry.ts": ['require("../package.json");', 'require("../metadata");'].join("\n"),
+    "package.json": JSON.stringify({ name: "fixture" }),
+    "metadata.json": JSON.stringify({ version: 1 }),
+  });
+
+  try {
+    const result = await analyze("src/entry.ts", { cwd: root });
+
+    expect([...result.graph.nodes.keys()]).toEqual(["src/entry.ts"]);
+    expect(result.graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ specifier: "../package.json", status: "external" }),
+        expect.objectContaining({ specifier: "../metadata", status: "external" }),
+      ]),
+    );
+    expect(result.warnings).toEqual([]);
+  } finally {
+    await removeFixture(root);
+  }
+});
