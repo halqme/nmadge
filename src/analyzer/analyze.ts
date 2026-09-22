@@ -133,7 +133,7 @@ export async function analyze(
         continue;
       }
 
-      const resolution = resolver.resolve(reference.specifier, filePath);
+      const resolution = resolver.resolve(reference.specifier, filePath, reference.kind);
       let edge: DependencyEdge;
       if (resolution.status === "internal") {
         const targetPath = await canonicalPath(resolve(resolution.absolutePath));

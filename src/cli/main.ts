@@ -10,9 +10,8 @@ import { renderMermaid } from "../render/mermaid.ts";
 import { renderSvg } from "../render/svg.ts";
 import { renderCycles, renderText } from "../render/text.ts";
 import type { AnalyzeOptions } from "../types.ts";
+import { packageVersion } from "./version.ts";
 import { parseCliOptions } from "./options.ts";
-
-const VERSION = "0.1.0";
 
 const HELP = `Usage: nmadge <path...> [options]
 
@@ -50,7 +49,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     return;
   }
   if (argv.includes("--version") || argv.includes("-v")) {
-    process.stdout.write(`${VERSION}\n`);
+    process.stdout.write(`${packageVersion}\n`);
     return;
   }
 

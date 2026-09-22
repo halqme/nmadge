@@ -67,6 +67,9 @@ Use this structure:
 ├── bun.lock
 ├── package.json
 ├── README.md
+├── scripts
+│   ├── check-pack.mjs
+│   └── clean-dist.mjs
 ├── src
 │   ├── analyzer
 │   │   ├── analyze.ts
@@ -75,7 +78,8 @@ Use this structure:
 │   │   └── resolver.ts
 │   ├── cli
 │   │   ├── main.ts
-│   │   └── options.ts
+│   │   ├── options.ts
+│   │   └── version.ts
 │   ├── graph
 │   │   ├── cycles.ts
 │   │   ├── filter.ts
@@ -108,7 +112,7 @@ Do not split the CLI and library into separate npm packages.
 
 # 4. package.json
 
-Use this initial `package.json`:
+The package uses the following release-relevant scripts:
 
 ```json
 {
@@ -138,14 +142,15 @@ Use this initial `package.json`:
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "oxlint src",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "bun test",
     "dev": "bun run src/cli/main.ts",
-    "prepack": "tsc -p tsconfig.build.json"
+    "release:check": "node scripts/check-pack.mjs",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
@@ -615,9 +620,14 @@ Internal interface:
 
 ```ts
 export interface Resolver {
-  resolve(specifier: string, importer: string): ResolveResult;
+  resolve(specifier: string, importer: string, kind: DependencyKind): ResolveResult;
 }
 ```
+
+Use `node` plus `import` conditions for `import`, `dynamic-import`, and
+`re-export`. Use `node` plus `require` conditions for `require` and
+`require-resolve`. The two `oxc-resolver` configurations share the underlying
+resolver cache through `cloneWithOptions()`.
 
 Classification rules:
 

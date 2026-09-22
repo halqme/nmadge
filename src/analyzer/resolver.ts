@@ -1,7 +1,7 @@
 import { extname, isAbsolute, resolve } from "node:path";
 import { ResolverFactory } from "oxc-resolver";
 import { DEFAULT_EXTENSIONS } from "./discover.ts";
-import type { AnalyzeOptions } from "../types.ts";
+import type { AnalyzeOptions, DependencyKind } from "../types.ts";
 
 export type ResolveResult =
   | { status: "internal"; absolutePath: string }
@@ -9,7 +9,7 @@ export type ResolveResult =
   | { status: "unresolved"; reason?: string };
 
 export interface Resolver {
-  resolve(specifier: string, importer: string): ResolveResult;
+  resolve(specifier: string, importer: string, kind: DependencyKind): ResolveResult;
 }
 
 function normalizeExtensions(extensions: readonly string[]): string[] {
@@ -40,6 +40,7 @@ function isBareSpecifier(specifier: string): boolean {
 function createResolverOptions(
   options: AnalyzeOptions,
   extensions: readonly string[],
+  conditionNames: readonly string[],
 ): ConstructorParameters<typeof ResolverFactory>[0] {
   const tsconfig = options.tsconfig
     ? {
@@ -50,6 +51,7 @@ function createResolverOptions(
 
   return {
     builtinModules: true,
+    conditionNames: [...conditionNames],
     extensions: normalizeExtensions(extensions),
     symlinks: false,
     extensionAlias: {
@@ -72,11 +74,17 @@ export function createResolver(options: AnalyzeOptions): Resolver {
       extension.startsWith(".") ? extension.toLowerCase() : `.${extension.toLowerCase()}`,
     ),
   );
-  const factory = new ResolverFactory(createResolverOptions(options, extensions));
+  const esmFactory = new ResolverFactory(
+    createResolverOptions(options, extensions, ["node", "import"]),
+  );
+  const cjsFactory = esmFactory.cloneWithOptions({
+    conditionNames: ["node", "require"],
+  });
   const includeNpm = options.includeNpm ?? false;
 
   return {
-    resolve(specifier, importer) {
+    resolve(specifier, importer, kind) {
+      const factory = kind === "require" || kind === "require-resolve" ? cjsFactory : esmFactory;
       const result = factory.resolveFileSync(importer, specifier);
 
       if (result.builtin) {

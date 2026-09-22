@@ -29,14 +29,15 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "oxlint src",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "bun test",
     "dev": "bun run src/cli/main.ts",
-    "prepack": "tsc -p tsconfig.build.json"
+    "release:check": "node scripts/check-pack.mjs",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",

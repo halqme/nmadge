@@ -1,36 +1,68 @@
 # nmadge
 
-Modern JavaScript and TypeScript module dependency graph analyzer.
+A zero-config module dependency graph CLI for modern JavaScript and TypeScript.
 
-## Requirements
+## One-shot CLI
 
-- Node.js 22 or newer to run the published CLI
-- Bun for development and tests
-
-Install dependencies with:
+Generate a standalone SVG without installing Graphviz or any other system package:
 
 ```bash
-bun install
+bunx nmadge ./src/index.ts --image graph.svg
 ```
 
-## CLI
+This writes the generated graph to `graph.svg`, ready to open in a browser or share.
+
+Find circular dependencies in a directory:
 
 ```bash
-nmadge src
-nmadge src --circular
-nmadge src --json
-nmadge src --mermaid
-nmadge src --d2
-nmadge src --image graph.svg
+bunx nmadge ./src --circular
 ```
 
-Without an output option, `nmadge` prints a plain-text dependency graph. `--circular` prints cycles when used alone. When `--circular` is combined with `--json`, `--mermaid`, `--d2`, or `--image`, it renders only the cyclic subgraph.
+Example output:
 
-Additional analysis options are `--cwd`, `--tsconfig`, `--include-npm`, and `--no-type-imports`. Analysis warnings are written to stderr; structured output remains on stdout.
+```text
+src/a.ts -> src/b.ts -> src/a.ts
+```
 
-SVG output is generated directly with Dagre and does not require Graphviz or another system package.
+The same one-shot commands work with `npx`:
+
+```bash
+npx nmadge ./src/index.ts --image graph.svg
+```
+
+Without an output option, `nmadge` prints a plain-text dependency graph. Other
+useful output modes are:
+
+```bash
+bunx nmadge ./src --json
+bunx nmadge ./src --mermaid
+bunx nmadge ./src --d2
+```
+
+The CLI needs no configuration file, initialization step, persistent state, or
+system Graphviz installation. It resolves modern JavaScript and TypeScript
+imports, CommonJS requires, dynamic imports, re-exports, type-only imports,
+and TypeScript path aliases.
+
+Additional analysis options are `--cwd`, `--tsconfig`, `--include-npm`, and
+`--no-type-imports`. Analysis warnings are written to stderr; structured output
+remains on stdout.
+
+## Installation
+
+For repeated use in a project, install `nmadge` with npm or Bun:
+
+```bash
+npm install --save-dev nmadge
+bun add --dev nmadge
+```
+
+The published CLI requires Node.js 22 or newer. Bun is not required to run it.
 
 ## API
+
+The public API is a small functional layer over the same `ModuleGraph` used by
+the CLI:
 
 ```ts
 import { analyze, findCycles, renderSvg } from "nmadge";
@@ -40,14 +72,21 @@ const cycles = findCycles(graph);
 const svg = renderSvg(graph);
 ```
 
-The public API exposes analysis, graph queries and filters, text/JSON/Mermaid/D2/SVG renderers, and their shared types. Module IDs are stable paths relative to the analysis root.
+The API also exposes graph queries and text, JSON, Mermaid, and D2 renderers.
+Module IDs are stable paths relative to the analysis root.
 
 ## Development
 
 ```bash
+bun install
 bun run check
 bun run lint
 bun run format:check
 bun run build
 bun test
+bun run release:check
 ```
+
+`build` removes `dist/` before running `tsc`. `release:check` packs the package,
+checks its contents, installs the packed artifact in a temporary project, and
+runs the packaged CLI including SVG generation.
