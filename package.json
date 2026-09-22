@@ -1,0 +1,57 @@
+{
+  "name": "nmadge",
+  "version": "0.1.0",
+  "description": "Modern JavaScript and TypeScript module dependency graph analyzer",
+  "keywords": [
+    "circular-dependency",
+    "dependency",
+    "dependency-graph",
+    "javascript",
+    "madge",
+    "typescript"
+  ],
+  "license": "MIT",
+  "bin": {
+    "nmadge": "./dist/cli/main.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "test": "bun test",
+    "dev": "bun run src/cli/main.ts",
+    "prepack": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.1.1",
+    "oxc-parser": "^0.151.0",
+    "oxc-resolver": "^11.24.2",
+    "oxc-walker": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "bun@1.4.2"
+}
