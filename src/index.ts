@@ -1,21 +1,21 @@
-export { analyze } from "./analyzer/analyze.js";
+export { analyze } from "./analyzer/analyze.ts";
 
-export { findCycles } from "./graph/cycles.js";
+export { findCycles } from "./graph/cycles.ts";
 
 export {
   findDirectDependencies,
   findDirectDependents,
   findLeaves,
   findOrphans,
-} from "./graph/queries.js";
+} from "./graph/queries.ts";
 
-export { filterGraph, cyclicSubgraph } from "./graph/filter.js";
+export { filterGraph, cyclicSubgraph } from "./graph/filter.ts";
 
-export { renderText } from "./render/text.js";
-export { renderJson } from "./render/json.js";
-export { renderMermaid } from "./render/mermaid.js";
-export { renderD2 } from "./render/d2.js";
-export { renderSvg } from "./render/svg.js";
+export { renderText } from "./render/text.ts";
+export { renderJson } from "./render/json.ts";
+export { renderMermaid } from "./render/mermaid.ts";
+export { renderD2 } from "./render/d2.ts";
+export { renderSvg } from "./render/svg.ts";
 
 export type {
   AnalyzeInput,
@@ -29,7 +29,7 @@ export type {
   ModuleGraph,
   ModuleId,
   ModuleNode,
-} from "./types.js";
+} from "./types.ts";
 
-export type { Cycle } from "./graph/cycles.js";
-export type { SvgRenderOptions } from "./render/svg.js";
+export type { Cycle } from "./graph/cycles.ts";
+export type { SvgRenderOptions } from "./render/svg.ts";

@@ -1,4 +1,4 @@
-import type { ModuleGraph, ModuleId } from "../types.js";
+import type { ModuleGraph, ModuleId } from "../types.ts";
 
 export interface Cycle {
   modules: readonly ModuleId[];

@@ -2,21 +2,21 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { expect, test } from "bun:test";
-import { analyze } from "../src/analyzer/analyze.js";
-import { extractImports } from "../src/analyzer/imports.js";
-import { findCycles } from "../src/graph/cycles.js";
-import { cyclicSubgraph, filterGraph } from "../src/graph/filter.js";
+import { analyze } from "../src/analyzer/analyze.ts";
+import { extractImports } from "../src/analyzer/imports.ts";
+import { findCycles } from "../src/graph/cycles.ts";
+import { cyclicSubgraph, filterGraph } from "../src/graph/filter.ts";
 import {
   findDirectDependencies,
   findDirectDependents,
   findLeaves,
   findOrphans,
-} from "../src/graph/queries.js";
-import { renderD2 } from "../src/render/d2.js";
-import { renderJson } from "../src/render/json.js";
-import { renderMermaid } from "../src/render/mermaid.js";
-import { renderSvg } from "../src/render/svg.js";
-import { renderText } from "../src/render/text.js";
+} from "../src/graph/queries.ts";
+import { renderD2 } from "../src/render/d2.ts";
+import { renderJson } from "../src/render/json.ts";
+import { renderMermaid } from "../src/render/mermaid.ts";
+import { renderSvg } from "../src/render/svg.ts";
+import { renderText } from "../src/render/text.ts";
 
 async function createFixture(files: Record<string, string>): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "nmadge-test-"));

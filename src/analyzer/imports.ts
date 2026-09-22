@@ -1,6 +1,6 @@
 import { parseSync } from "oxc-parser";
 import { walk } from "oxc-walker";
-import type { AnalysisWarning, DependencyKind } from "../types.js";
+import type { AnalysisWarning, DependencyKind } from "../types.ts";
 
 export interface ImportReference {
   specifier: string;

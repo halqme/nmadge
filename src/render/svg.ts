@@ -1,5 +1,5 @@
 import { graphlib, layout } from "@dagrejs/dagre";
-import type { ModuleGraph } from "../types.js";
+import type { ModuleGraph } from "../types.ts";
 
 export interface SvgRenderOptions {
   direction?: "LR" | "TB";

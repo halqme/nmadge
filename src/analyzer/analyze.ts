@@ -1,17 +1,17 @@
 import { readFile, realpath } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
-import { discoverFiles, DEFAULT_EXTENSIONS } from "./discover.js";
-import { extractImports } from "./imports.js";
-import type { ImportReference } from "./imports.js";
-import { createResolver } from "./resolver.js";
-import { createGraphBuilder } from "../graph/graph.js";
+import { discoverFiles, DEFAULT_EXTENSIONS } from "./discover.ts";
+import { extractImports } from "./imports.ts";
+import type { ImportReference } from "./imports.ts";
+import { createResolver } from "./resolver.ts";
+import { createGraphBuilder } from "../graph/graph.ts";
 import type {
   AnalysisResult,
   AnalysisWarning,
   AnalyzeInput,
   AnalyzeOptions,
   DependencyEdge,
-} from "../types.js";
+} from "../types.ts";
 
 function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;

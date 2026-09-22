@@ -1,6 +1,6 @@
-import { findCycles } from "./cycles.js";
-import { createGraphBuilder } from "./graph.js";
-import type { ModuleGraph, ModuleNode } from "../types.js";
+import { findCycles } from "./cycles.ts";
+import { createGraphBuilder } from "./graph.ts";
+import type { ModuleGraph, ModuleNode } from "../types.ts";
 
 export type GraphFilter = (node: ModuleNode) => boolean;
 

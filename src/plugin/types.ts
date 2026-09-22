@@ -1,4 +1,4 @@
-import type { ImportExtractionResult } from "../analyzer/imports.js";
+import type { ImportExtractionResult } from "../analyzer/imports.ts";
 
 export interface SourceExtractor {
   supports(filePath: string): boolean;

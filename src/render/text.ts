@@ -1,5 +1,5 @@
-import type { Cycle } from "../graph/cycles.js";
-import type { ModuleGraph } from "../types.js";
+import type { Cycle } from "../graph/cycles.ts";
+import type { ModuleGraph } from "../types.ts";
 
 function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;

@@ -6,6 +6,7 @@
     "exactOptionalPropertyTypes": true,
 
     "moduleResolution": "nodenext",
+    "rewriteRelativeImportExtensions": true,
     "verbatimModuleSyntax": true,
     "types": ["node"],
 

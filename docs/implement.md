@@ -39,15 +39,17 @@ The installed `nmadge` CLI must work with Node.js.
 
 Source files must use ESM syntax.
 
-Because the TypeScript configuration uses `NodeNext`, relative imports in source code must include the emitted `.js` extension.
+Because the TypeScript configuration uses `NodeNext`, source imports must
+still be explicit. Use the `.ts` extension in source; TypeScript rewrites it to
+`.js` in the emitted package through `rewriteRelativeImportExtensions`.
 
 Example:
 
 ```ts
-import { analyze } from "../analyzer/analyze.js";
+import { analyze } from "../analyzer/analyze.ts";
 ```
 
-Do not write:
+Do not write extensionless imports:
 
 ```ts
 import { analyze } from "../analyzer/analyze";
@@ -182,6 +184,7 @@ Use:
     "exactOptionalPropertyTypes": true,
 
     "moduleResolution": "nodenext",
+    "rewriteRelativeImportExtensions": true,
     "verbatimModuleSyntax": true,
     "types": ["node"],
 
@@ -1414,24 +1417,24 @@ Anything not exported here is private implementation detail.
 Export exactly these runtime functions:
 
 ```ts
-export { analyze } from "./analyzer/analyze.js";
+export { analyze } from "./analyzer/analyze.ts";
 
-export { findCycles } from "./graph/cycles.js";
+export { findCycles } from "./graph/cycles.ts";
 
 export {
   findDirectDependencies,
   findDirectDependents,
   findLeaves,
   findOrphans,
-} from "./graph/queries.js";
+} from "./graph/queries.ts";
 
-export { filterGraph, cyclicSubgraph } from "./graph/filter.js";
+export { filterGraph, cyclicSubgraph } from "./graph/filter.ts";
 
-export { renderText } from "./render/text.js";
-export { renderJson } from "./render/json.js";
-export { renderMermaid } from "./render/mermaid.js";
-export { renderD2 } from "./render/d2.js";
-export { renderSvg } from "./render/svg.js";
+export { renderText } from "./render/text.ts";
+export { renderJson } from "./render/json.ts";
+export { renderMermaid } from "./render/mermaid.ts";
+export { renderD2 } from "./render/d2.ts";
+export { renderSvg } from "./render/svg.ts";
 ```
 
 Export these public types:
@@ -1449,11 +1452,11 @@ export type {
   ModuleGraph,
   ModuleId,
   ModuleNode,
-} from "./types.js";
+} from "./types.ts";
 
-export type { Cycle } from "./graph/cycles.js";
+export type { Cycle } from "./graph/cycles.ts";
 
-export type { SvgRenderOptions } from "./render/svg.js";
+export type { SvgRenderOptions } from "./render/svg.ts";
 ```
 
 Do not export:

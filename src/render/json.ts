@@ -1,4 +1,4 @@
-import type { DependencyEdge, ModuleGraph } from "../types.js";
+import type { DependencyEdge, ModuleGraph } from "../types.ts";
 
 interface JsonModule {
   id: string;

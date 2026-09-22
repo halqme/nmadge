@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 import { writeFile } from "node:fs/promises";
-import { analyze } from "../analyzer/analyze.js";
-import { findCycles } from "../graph/cycles.js";
-import { cyclicSubgraph } from "../graph/filter.js";
-import { renderD2 } from "../render/d2.js";
-import { renderJson } from "../render/json.js";
-import { renderMermaid } from "../render/mermaid.js";
-import { renderSvg } from "../render/svg.js";
-import { renderCycles, renderText } from "../render/text.js";
-import type { AnalyzeOptions } from "../types.js";
-import { parseCliOptions } from "./options.js";
+import { analyze } from "../analyzer/analyze.ts";
+import { findCycles } from "../graph/cycles.ts";
+import { cyclicSubgraph } from "../graph/filter.ts";
+import { renderD2 } from "../render/d2.ts";
+import { renderJson } from "../render/json.ts";
+import { renderMermaid } from "../render/mermaid.ts";
+import { renderSvg } from "../render/svg.ts";
+import { renderCycles, renderText } from "../render/text.ts";
+import type { AnalyzeOptions } from "../types.ts";
+import { parseCliOptions } from "./options.ts";
 
 const VERSION = "0.1.0";
 

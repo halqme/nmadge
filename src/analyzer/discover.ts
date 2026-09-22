@@ -1,6 +1,6 @@
 import { lstat, readdir, realpath, stat } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
-import type { AnalyzeInput } from "../types.js";
+import type { AnalyzeInput } from "../types.ts";
 
 export const DEFAULT_EXTENSIONS = [
   ".js",

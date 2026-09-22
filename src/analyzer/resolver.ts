@@ -1,7 +1,7 @@
 import { extname, isAbsolute, resolve } from "node:path";
 import { ResolverFactory } from "oxc-resolver";
-import { DEFAULT_EXTENSIONS } from "./discover.js";
-import type { AnalyzeOptions } from "../types.js";
+import { DEFAULT_EXTENSIONS } from "./discover.ts";
+import type { AnalyzeOptions } from "../types.ts";
 
 export type ResolveResult =
   | { status: "internal"; absolutePath: string }
