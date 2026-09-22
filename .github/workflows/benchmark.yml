@@ -1,0 +1,184 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HONO_REPOSITORY: https://github.com/honojs/hono.git
+      HONO_COMMIT: 098e11912ab244c5c33931de007f04dc8e3c2929
+      MADGE_VERSION: 8.0.0
+      DPDM_VERSION: 4.3.0
+      NODE_VERSION: 24.x
+      BUN_VERSION: 1.4.2
+      HYPERFINE_VERSION: 1.19.0
+    steps:
+      - name: Check out benchmarked source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install hyperfine
+        uses: taiki-e/install-action@v2
+        with:
+          tool: hyperfine@${{ env.HYPERFINE_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build current oxdg
+        run: bun run build
+
+      - name: Prepare fixed Hono workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$RUNNER_TEMP/oxdg-benchmark"
+          hono_dir="$workspace/hono"
+          mkdir -p "$workspace"
+          git init -q "$hono_dir"
+          git -C "$hono_dir" remote add origin "$HONO_REPOSITORY"
+          git -C "$hono_dir" fetch --depth 1 origin "$HONO_COMMIT"
+          git -C "$hono_dir" checkout --detach "$HONO_COMMIT"
+          test "$(git -C "$hono_dir" rev-parse HEAD)" = "$HONO_COMMIT"
+          {
+            echo "BENCHMARK_WORKSPACE=$workspace"
+            echo "HONO_DIR=$hono_dir"
+          } >> "$GITHUB_ENV"
+
+      - name: Pack and install comparison tools in fresh projects
+        run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --output benchmark-package-sizes.json
+
+      - name: Record benchmark environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          oxdg_version="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).version)')"
+          hono_actual="$(git -C "$HONO_DIR" rev-parse HEAD)"
+          cat > benchmark-metadata.json <<EOF
+          {
+            "runner": "ubuntu-latest",
+            "workspace": {
+              "root": "$BENCHMARK_WORKSPACE",
+              "layout": "{hono,packs/{oxdg,madge,dpdm},consumers/{oxdg,madge,dpdm}}"
+            },
+            "hono": {
+              "repository": "$HONO_REPOSITORY",
+              "commit": "$hono_actual"
+            },
+            "madge": "madge@$MADGE_VERSION",
+            "dpdm": "dpdm@$DPDM_VERSION",
+            "oxdg": {
+              "version": "$oxdg_version",
+              "source": "current checkout, bun run build, npm pack"
+            },
+            "node": {
+              "requested": "$NODE_VERSION",
+              "actual": "$(node --version)"
+            },
+            "bun": {
+              "requested": "$BUN_VERSION",
+              "actual": "$(bun --version)"
+            },
+            "hyperfine": {
+              "requested": "$HYPERFINE_VERSION",
+              "actual": "$(hyperfine --version)"
+            }
+          }
+          EOF
+          test "$hono_actual" = "$HONO_COMMIT"
+
+      - name: Run directory benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$HONO_DIR"
+          hyperfine \
+            --warmup 8 \
+            --runs 20 \
+            --export-json "$GITHUB_WORKSPACE/benchmark.json" \
+            "$BENCHMARK_WORKSPACE/consumers/madge/node_modules/.bin/madge --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src" \
+            "$BENCHMARK_WORKSPACE/consumers/oxdg/node_modules/.bin/oxdg src" \
+            "$BENCHMARK_WORKSPACE/consumers/dpdm/node_modules/.bin/dpdm 'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}'"
+
+      - name: Write Actions Summary
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from "node:fs";
+
+          const metadata = JSON.parse(readFileSync("benchmark-metadata.json", "utf8"));
+          const sizes = JSON.parse(readFileSync("benchmark-package-sizes.json", "utf8"));
+          const benchmark = JSON.parse(readFileSync("benchmark.json", "utf8"));
+          const formatBytes = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
+          const formatDuration = (seconds) => `${(seconds * 1000).toFixed(1)} ms`;
+          const toolName = (command) =>
+            command.includes("/madge/") ? "Madge" : command.includes("/dpdm/") ? "dpdm" : "oxdg";
+
+          const lines = [
+            "## Benchmark",
+            "",
+            "### Fixed workspace",
+            "",
+            "| Input | Value |",
+            "| --- | --- |",
+            `| Runner | ${metadata.runner} |`,
+            `| Hono commit | \`${metadata.hono.commit}\` |`,
+            `| Madge | ${metadata.madge} |`,
+            `| dpdm | ${metadata.dpdm} |`,
+            `| oxdg | oxdg@${metadata.oxdg.version} (${metadata.oxdg.source}) |`,
+            `| Node.js | ${metadata.node.requested} (${metadata.node.actual}) |`,
+            `| Bun | ${metadata.bun.requested} (${metadata.bun.actual}) |`,
+            `| hyperfine | ${metadata.hyperfine.requested} (${metadata.hyperfine.actual}) |`,
+            "",
+            "### Directory-wide analysis",
+            "",
+            "| Tool | Mean | Median | Min | Max |",
+            "| --- | ---: | ---: | ---: | ---: |",
+            ...benchmark.results.map(
+              (result) =>
+                `| ${toolName(result.command)} | ${formatDuration(result.mean)} | ${formatDuration(result.median)} | ${formatDuration(result.min)} | ${formatDuration(result.max)} |`,
+            ),
+            "",
+            "### Package footprint",
+            "",
+            "| Package | Unpacked package | node_modules after install |",
+            "| --- | ---: | ---: |",
+            ...sizes.packages.map(
+              (pkg) =>
+                `| ${pkg.name}@${pkg.version} | ${formatBytes(pkg.unpackedSizeBytes)} | ${formatBytes(pkg.nodeModulesSizeBytes)} |`,
+            ),
+            "",
+            `Raw results and measurements are attached as the \`benchmark\` artifact.`,
+          ];
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+          NODE
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark
+          if-no-files-found: error
+          path: |
+            benchmark.json
+            benchmark-metadata.json
+            benchmark-package-sizes.json

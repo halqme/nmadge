@@ -8,6 +8,7 @@ const execFile = promisify(execFileCallback);
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const projectRoot = new URL("../", import.meta.url);
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+const maxUnpackedSizeBytes = 500 * 1024;
 const temporaryRoot = await mkdtemp(join(tmpdir(), "oxdg-pack-check-"));
 
 async function run(command, args, cwd) {
@@ -31,6 +32,15 @@ try {
   );
   const packJsonStart = packOutput.lastIndexOf("\n[");
   const packResult = JSON.parse(packOutput.slice(packJsonStart >= 0 ? packJsonStart + 1 : 0))[0];
+  if (typeof packResult.unpackedSize !== "number") {
+    throw new Error("npm pack did not report an unpacked package size");
+  }
+  if (packResult.unpackedSize > maxUnpackedSizeBytes) {
+    throw new Error(
+      `unpacked package size ${packResult.unpackedSize} bytes exceeds the ${maxUnpackedSizeBytes}-byte limit`,
+    );
+  }
+
   const packedPaths = packResult.files.map(({ path }) => path).sort();
   const unexpectedPaths = packedPaths.filter(
     (path) =>
@@ -113,7 +123,7 @@ try {
   }
 
   console.log(
-    `Checked ${packResult.filename}: ${packedPaths.length} files, CLI, cycles, JSON, npx, and bunx`,
+    `Checked ${packResult.filename}: ${packedPaths.length} files, ${packResult.unpackedSize} unpacked bytes, CLI, cycles, JSON, npx, and bunx`,
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
