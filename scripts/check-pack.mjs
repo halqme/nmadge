@@ -8,7 +8,7 @@ const execFile = promisify(execFileCallback);
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const projectRoot = new URL("../", import.meta.url);
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-const temporaryRoot = await mkdtemp(join(tmpdir(), "nmadge-pack-check-"));
+const temporaryRoot = await mkdtemp(join(tmpdir(), "oxdg-pack-check-"));
 
 async function run(command, args, cwd) {
   try {
@@ -60,7 +60,7 @@ try {
   await mkdir(join(consumer, "src"), { recursive: true });
   await writeFile(
     join(consumer, "package.json"),
-    JSON.stringify({ name: "nmadge-pack-check", private: true, type: "module" }),
+    JSON.stringify({ name: "oxdg-pack-check", private: true, type: "module" }),
     "utf8",
   );
   await writeFile(join(consumer, "src", "a.ts"), 'import "./b.js";\n', "utf8");
@@ -72,7 +72,7 @@ try {
     consumer,
   );
   const installedCli = await readFile(
-    join(consumer, "node_modules", "nmadge", "dist", "cli", "main.js"),
+    join(consumer, "node_modules", "oxdg", "dist", "cli", "main.js"),
     "utf8",
   );
   if (!installedCli.startsWith("#!/usr/bin/env node\n")) {
@@ -80,7 +80,7 @@ try {
   }
   const { stdout: versionOutput } = await run(
     "npx",
-    ["--no-install", "nmadge", "--version"],
+    ["--no-install", "oxdg", "--version"],
     consumer,
   );
   if (versionOutput.trim() !== packageJson.version) {
@@ -89,22 +89,18 @@ try {
     );
   }
 
-  await run("npx", ["--no-install", "nmadge", "./src", "--circular"], consumer);
+  await run("npx", ["--no-install", "oxdg", "./src", "--circular"], consumer);
   const { stdout: jsonOutput } = await run(
     "npx",
-    ["--no-install", "nmadge", "./src", "--json"],
+    ["--no-install", "oxdg", "./src", "--json"],
     consumer,
   );
   const jsonGraph = JSON.parse(jsonOutput);
   if (!Array.isArray(jsonGraph.modules) || !Array.isArray(jsonGraph.dependencies)) {
     throw new Error("packed CLI produced an invalid JSON graph");
   }
-  await run("npx", ["--no-install", "nmadge", "./src/a.ts", "--image", "graph.svg"], consumer);
-  await run(
-    "bunx",
-    ["--no-install", "nmadge", "./src/a.ts", "--image", "bunx-graph.svg"],
-    consumer,
-  );
+  await run("npx", ["--no-install", "oxdg", "./src/a.ts", "--image", "graph.svg"], consumer);
+  await run("bunx", ["--no-install", "oxdg", "./src/a.ts", "--image", "bunx-graph.svg"], consumer);
   const svg = await readFile(join(consumer, "graph.svg"), "utf8");
   const bunxSvg = await readFile(join(consumer, "bunx-graph.svg"), "utf8");
   if (

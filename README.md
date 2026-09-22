@@ -1,17 +1,22 @@
-# nmadge
+# oxdg
 
-A modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by madge.
+A modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by [Madge](https://github.com/pahen/madge).
+
+oxdg = Oxc Dependency Graph
+
+A modern dependency graph CLI inspired by Madge,
+built around the Oxc ecosystem.
 
 Try
 ```
-npx nmadge src/index.ts --image graph.svg
+npx oxdg src/index.ts --image graph.svg
 ```
 
-![npx nmadge src/index.ts --image graph.svg](./graph.svg)
+![npx oxdg src/index.ts --image graph.svg](./graph.svg)
 
 ## How it compares
 
-nmadge is inspired by [Madge](https://github.com/pahen/madge), but uses a modern
+oxdg is inspired by [Madge](https://github.com/pahen/madge), but uses a modern
 JavaScript/TypeScript stack and provides built-in Mermaid, D2, and standalone SVG
 output.
 
@@ -19,7 +24,7 @@ The following is a high-level feature comparison with related tools. It is
 directional rather than a benchmark and was checked against the linked public
 documentation on 2026-09-22.
 
-| Criterion                     | [Madge](https://github.com/pahen/madge) | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | [dpdm](https://github.com/acrazing/dpdm) | [module-graph](https://github.com/thepassle/module-graph) | nmadge |
+| Criterion                     | [Madge](https://github.com/pahen/madge) | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | [dpdm](https://github.com/acrazing/dpdm) | [module-graph](https://github.com/thepassle/module-graph) | oxdg |
 | ----------------------------- | --------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------- | ------ |
 | Active maintenance            | △                                       | ◎                                                                    | ◎                                        | ○                                                         | —      |
 | JavaScript / TypeScript       | ○                                       | ◎                                                                    | ◎                                        | ◎                                                         | ◎      |
@@ -45,7 +50,7 @@ documentation on 2026-09-22.
 Generate a standalone SVG without installing Graphviz or any other system package:
 
 ```bash
-bunx nmadge ./src/index.ts --image graph.svg
+bunx oxdg ./src/index.ts --image graph.svg
 ```
 
 This writes the generated graph to `graph.svg`, ready to open in a browser or share.
@@ -53,7 +58,7 @@ This writes the generated graph to `graph.svg`, ready to open in a browser or sh
 Find circular dependencies in a directory:
 
 ```bash
-bunx nmadge ./src --circular
+bunx oxdg ./src --circular
 ```
 
 Example output:
@@ -65,16 +70,16 @@ src/a.ts -> src/b.ts -> src/a.ts
 The same one-shot commands work with `npx`:
 
 ```bash
-npx nmadge ./src/index.ts --image graph.svg
+npx oxdg ./src/index.ts --image graph.svg
 ```
 
-Without an output option, `nmadge` prints a plain-text dependency graph. Other
+Without an output option, `oxdg` prints a plain-text dependency graph. Other
 useful output modes are:
 
 ```bash
-bunx nmadge ./src --json
-bunx nmadge ./src --mermaid
-bunx nmadge ./src --d2
+bunx oxdg ./src --json
+bunx oxdg ./src --mermaid
+bunx oxdg ./src --d2
 ```
 
 The CLI needs no configuration file, initialization step, persistent state, or
@@ -88,11 +93,11 @@ remains on stdout.
 
 ## Installation
 
-For repeated use in a project, install `nmadge` with npm or Bun:
+For repeated use in a project, install `oxdg` with npm or Bun:
 
 ```bash
-npm install --save-dev nmadge
-bun add --dev nmadge
+npm install --save-dev oxdg
+bun add --dev oxdg
 ```
 
 The published CLI requires Node.js 22 or newer.
@@ -103,7 +108,7 @@ The public API is a small functional layer over the same `ModuleGraph` used by
 the CLI:
 
 ```ts
-import { analyze, findCycles, renderSvg } from "nmadge";
+import { analyze, findCycles, renderSvg } from "oxdg";
 
 const { graph, warnings } = await analyze("./src");
 const cycles = findCycles(graph);

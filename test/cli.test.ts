@@ -39,7 +39,7 @@ test("runs help and version without an input path", () => {
   const help = runCli("--help");
   expect(help.status).toBe(0);
   expect(help.stderr).toBe("");
-  expect(help.stdout).toContain("Usage: nmadge <path...> [options]");
+  expect(help.stdout).toContain("Usage: oxdg <path...> [options]");
 
   const version = runCli("--version");
   expect(version.status).toBe(0);

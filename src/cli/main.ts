@@ -13,7 +13,7 @@ import type { AnalyzeOptions } from "../types.ts";
 import { packageVersion } from "./version.ts";
 import { parseCliOptions } from "./options.ts";
 
-const HELP = `Usage: nmadge <path...> [options]
+const HELP = `Usage: oxdg <path...> [options]
 
 Analyze JavaScript and TypeScript module dependencies.
 
@@ -35,7 +35,7 @@ Analysis:
 
 function printWarnings(warnings: readonly { code: string; file: string; message: string }[]): void {
   for (const warning of warnings) {
-    console.error(`nmadge: ${warning.code}: ${warning.file}: ${warning.message}`);
+    console.error(`oxdg: ${warning.code}: ${warning.file}: ${warning.message}`);
   }
 }
 
@@ -99,7 +99,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 
     process.stdout.write(`${output}\n`);
   } catch (error) {
-    console.error(`nmadge: ${errorMessage(error)}`);
+    console.error(`oxdg: ${errorMessage(error)}`);
     process.exitCode = 1;
   }
 }

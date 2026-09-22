@@ -14,7 +14,7 @@ export async function writeFixtureFiles(
 }
 
 export async function createFixture(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "nmadge-test-"));
+  const root = await mkdtemp(join(tmpdir(), "oxdg-test-"));
   await writeFixtureFiles(root, files);
   return root;
 }

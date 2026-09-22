@@ -1,5 +1,5 @@
 {
-  "name": "nmadge",
+  "name": "oxdg",
   "version": "0.1.0",
   "description": "Modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by madge",
   "keywords": [
@@ -10,14 +10,14 @@
     "madge",
     "typescript"
   ],
-  "homepage": "https://github.com/halqme/nmadge#readme",
+  "homepage": "https://github.com/halqme/oxdg#readme",
   "bugs": {
-    "url": "https://github.com/halqme/nmadge/issues"
+    "url": "https://github.com/halqme/oxdg/issues"
   },
   "license": "MIT",
   "author": "HALQME",
   "bin": {
-    "nmadge": "dist/cli/main.js"
+    "oxdg": "dist/cli/main.js"
   },
   "files": [
     "dist",
@@ -62,5 +62,5 @@
     "node": ">=22.0.0"
   },
   "packageManager": "bun@1.4.2",
-  "url": "git+https://github.com/halqme/nmadge.git"
+  "url": "git+https://github.com/halqme/oxdg.git"
 }

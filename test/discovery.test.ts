@@ -6,7 +6,7 @@ import { analyze } from "../src/analyzer/analyze.ts";
 import { createFixture, removeFixture, writeFixtureFiles } from "./fixtures.ts";
 
 test("excludes .git and node_modules, deduplicates inputs, and does not follow directory symlinks", async () => {
-  const outside = await mkdtemp(join(tmpdir(), "nmadge-linked-"));
+  const outside = await mkdtemp(join(tmpdir(), "oxdg-linked-"));
   const root = await createFixture({
     "src/entry.ts": "export const entry = true;\n",
     "regular.ts": "export const regular = true;\n",
