@@ -89,6 +89,7 @@ Use this structure:
 │   │   ├── svg.ts
 │   │   └── text.ts
 │   └── types.ts
+├── tsconfig.build.json
 ├── tsconfig.json
 └── tsconfig.test.json
 ```
@@ -133,14 +134,14 @@ Use this initial `package.json`:
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "oxlint src",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "bun test",
     "dev": "bun run src/cli/main.ts",
-    "prepack": "tsc -p tsconfig.json"
+    "prepack": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
@@ -175,11 +176,7 @@ Use:
   "compilerOptions": {
     "target": "ES2024",
     "module": "NodeNext",
-    "rootDir": "src",
-    "outDir": "dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "noEmit": true,
     "exactOptionalPropertyTypes": true,
 
     "moduleResolution": "nodenext",
@@ -202,13 +199,30 @@ Use:
 }
 ```
 
+Use `tsconfig.build.json` for package output:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"]
+}
+```
+
 Do not bundle the package.
 
 `tsc` should preserve the source module structure in `dist/`.
 
-Tests use `tsconfig.test.json`, which extends this configuration, adds Bun's
-`@types/bun`, and includes `test/**/*.ts`. The `check` script runs both the
-production and test configurations.
+Tests use `tsconfig.test.json`, which extends the no-emit configuration, adds
+Bun's `@types/bun`, and includes `test/**/*.ts`. The `check` script runs both
+the production and test configurations.
 
 ---
 

@@ -2,11 +2,7 @@
   "compilerOptions": {
     "target": "ES2024",
     "module": "NodeNext",
-    "rootDir": "src",
-    "outDir": "dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "noEmit": true,
     "exactOptionalPropertyTypes": true,
 
     "moduleResolution": "nodenext",
