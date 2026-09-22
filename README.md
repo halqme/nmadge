@@ -87,6 +87,8 @@ bun test
 bun run release:check
 ```
 
-`build` removes `dist/` before running `tsc`. `release:check` packs the package,
-checks its contents, installs the packed artifact in a temporary project, and
-runs the packaged CLI including SVG generation.
+`check` runs TypeScript type checking. `build` uses `tsdown` to create a clean
+ESM distribution with declarations and source maps. `release:check` packs the
+package, checks its contents, installs the packed artifact in a temporary
+project, and runs the packaged CLI including version, cycles, JSON, and SVG
+checks.

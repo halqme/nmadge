@@ -31,7 +31,8 @@ Use:
 - ESM
 - Node.js 22 or newer as the supported runtime
 - Bun as the development package manager and test runner
-- `tsc` for building the published package
+- `tsc --noEmit` for type checking
+- `tsdown` for building the published package
 
 Do not make the published package depend on Bun.
 
@@ -40,8 +41,8 @@ The installed `nmadge` CLI must work with Node.js.
 Source files must use ESM syntax.
 
 Because the TypeScript configuration uses `NodeNext`, source imports must
-still be explicit. Use the `.ts` extension in source; TypeScript rewrites it to
-`.js` in the emitted package through `rewriteRelativeImportExtensions`.
+still be explicit. Use the `.ts` extension in source; tsdown emits the matching
+`.js` paths for the published ESM package.
 
 Example:
 
@@ -68,8 +69,7 @@ Use this structure:
 ├── package.json
 ├── README.md
 ├── scripts
-│   ├── check-pack.mjs
-│   └── clean-dist.mjs
+│   └── check-pack.mjs
 ├── src
 │   ├── analyzer
 │   │   ├── analyze.ts
@@ -97,9 +97,9 @@ Use this structure:
 │   └── types.ts
 ├── test
 │   └── nmadge.test.ts
-├── tsconfig.build.json
 ├── tsconfig.json
-└── tsconfig.test.json
+├── tsconfig.test.json
+└── tsdown.config.ts
 ```
 
 Add a `LICENSE` file before publishing the package.
@@ -142,15 +142,15 @@ The package uses the following release-relevant scripts:
     }
   },
   "scripts": {
-    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
-    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "build": "tsdown",
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "oxlint src",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "bun test",
     "dev": "bun run src/cli/main.ts",
     "release:check": "node scripts/check-pack.mjs",
-    "prepack": "npm run build"
+    "prepack": "bun run build"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
@@ -163,6 +163,7 @@ The package uses the following release-relevant scripts:
     "@types/node": "^22.0.0",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
+    "tsdown": "^0.23.0",
     "typescript": "^7.0.2"
   },
   "engines": {
@@ -205,34 +206,42 @@ Use:
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "tsdown.config.ts"]
 }
 ```
 
-Use `tsconfig.build.json` for package output:
+Use `tsdown.config.ts` for package output:
 
-```json
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "noEmit": false,
-    "rootDir": "src",
-    "outDir": "dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
+```ts
+import { defineConfig } from "tsdown";
+
+export default defineConfig({
+  entry: {
+    index: "src/index.ts",
+    "cli/main": "src/cli/main.ts",
   },
-  "include": ["src/**/*.ts"]
-}
+  format: "esm",
+  platform: "node",
+  dts: true,
+  sourcemap: true,
+  clean: true,
+  // Keep the emitted names aligned with package.json's .js/.d.ts exports.
+  fixedExtension: false,
+  deps: {
+    neverBundle: ["@dagrejs/dagre", "oxc-parser", "oxc-resolver", "oxc-walker"],
+  },
+  minify: false,
+});
 ```
 
-Do not bundle the package.
-
-`tsc` should preserve the source module structure in `dist/`.
+`tsc --noEmit` remains responsible for type checking. `tsdown` generates the
+ESM JavaScript, declarations, and source maps in `dist/`, and cleans that
+output directory before every build. Runtime dependencies remain external
+package dependencies.
 
 Tests use `tsconfig.test.json`, which extends the no-emit configuration, adds
 Bun's `@types/bun`, and includes `test/**/*.ts`. The `check` script runs both
-the production and test configurations.
+the source and test TypeScript configurations.
 
 ---
 

@@ -29,15 +29,15 @@
     }
   },
   "scripts": {
-    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
-    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "build": "tsdown",
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "oxlint src",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "bun test",
     "dev": "bun run src/cli/main.ts",
     "release:check": "node scripts/check-pack.mjs",
-    "prepack": "npm run build"
+    "prepack": "bun run build"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
@@ -50,6 +50,7 @@
     "@types/node": "^22.0.0",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
+    "tsdown": "^0.23.0",
     "typescript": "^7.0.2"
   },
   "engines": {

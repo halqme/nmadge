@@ -29,7 +29,8 @@ try {
     ["pack", "--json", "--pack-destination", packDirectory],
     projectRoot,
   );
-  const packResult = JSON.parse(packOutput)[0];
+  const packJsonStart = packOutput.lastIndexOf("\n[");
+  const packResult = JSON.parse(packOutput.slice(packJsonStart >= 0 ? packJsonStart + 1 : 0))[0];
   const packedPaths = packResult.files.map(({ path }) => path).sort();
   const unexpectedPaths = packedPaths.filter(
     (path) =>
@@ -41,7 +42,14 @@ try {
   if (unexpectedPaths.length > 0) {
     throw new Error(`unexpected files in package: ${unexpectedPaths.join(", ")}`);
   }
-  for (const requiredPath of ["LICENSE", "README.md", "package.json", "dist/cli/main.js"]) {
+  for (const requiredPath of [
+    "LICENSE",
+    "README.md",
+    "package.json",
+    "dist/index.js",
+    "dist/index.d.ts",
+    "dist/cli/main.js",
+  ]) {
     if (!packedPaths.includes(requiredPath)) {
       throw new Error(`packed package is missing ${requiredPath}`);
     }
@@ -63,6 +71,13 @@ try {
     ["install", "--ignore-scripts", "--no-package-lock", "--no-save", tarball],
     consumer,
   );
+  const installedCli = await readFile(
+    join(consumer, "node_modules", "nmadge", "dist", "cli", "main.js"),
+    "utf8",
+  );
+  if (!installedCli.startsWith("#!/usr/bin/env node\n")) {
+    throw new Error("packed CLI is missing its executable shebang");
+  }
   const { stdout: versionOutput } = await run(
     "npx",
     ["--no-install", "nmadge", "--version"],
@@ -75,6 +90,15 @@ try {
   }
 
   await run("npx", ["--no-install", "nmadge", "./src", "--circular"], consumer);
+  const { stdout: jsonOutput } = await run(
+    "npx",
+    ["--no-install", "nmadge", "./src", "--json"],
+    consumer,
+  );
+  const jsonGraph = JSON.parse(jsonOutput);
+  if (!Array.isArray(jsonGraph.modules) || !Array.isArray(jsonGraph.dependencies)) {
+    throw new Error("packed CLI produced an invalid JSON graph");
+  }
   await run("npx", ["--no-install", "nmadge", "./src/a.ts", "--image", "graph.svg"], consumer);
   await run(
     "bunx",
@@ -93,7 +117,7 @@ try {
   }
 
   console.log(
-    `Checked ${packResult.filename}: ${packedPaths.length} files, CLI, cycles, npx, and bunx`,
+    `Checked ${packResult.filename}: ${packedPaths.length} files, CLI, cycles, JSON, npx, and bunx`,
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
