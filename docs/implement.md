@@ -89,7 +89,8 @@ Use this structure:
 │   │   ├── svg.ts
 │   │   └── text.ts
 │   └── types.ts
-└── tsconfig.json
+├── tsconfig.json
+└── tsconfig.test.json
 ```
 
 Add a `LICENSE` file before publishing the package.
@@ -148,6 +149,7 @@ Use this initial `package.json`:
     "oxc-walker": "^1.1.1"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "@types/node": "^22.0.0",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
