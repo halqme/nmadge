@@ -1,6 +1,6 @@
 # nmadge
 
-A zero-config module dependency graph CLI for modern JavaScript and TypeScript.
+A modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by madge.
 
 ## One-shot CLI
 

@@ -1,7 +1,7 @@
 {
   "name": "nmadge",
   "version": "0.1.0",
-  "description": "Modern JavaScript and TypeScript module dependency graph analyzer",
+  "description": "Modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by madge",
   "keywords": [
     "circular-dependency",
     "dependency",
