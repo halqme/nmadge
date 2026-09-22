@@ -24,7 +24,7 @@ nmadge src --d2
 nmadge src --image graph.svg
 ```
 
-Without an output option, `nmadge` prints a plain-text dependency graph. `--circular` prints cycles when used alone. With `--json`, `--mermaid`, `--d2`, or `--image`, it renders only the cyclic subgraph.
+Without an output option, `nmadge` prints a plain-text dependency graph. `--circular` prints cycles when used alone. When `--circular` is combined with `--json`, `--mermaid`, `--d2`, or `--image`, it renders only the cyclic subgraph.
 
 Additional analysis options are `--cwd`, `--tsconfig`, `--include-npm`, and `--no-type-imports`. Analysis warnings are written to stderr; structured output remains on stdout.
 
