@@ -2,6 +2,13 @@
 
 A modern CLI tool for analyzing JavaScript and TypeScript module dependencies, inspired by madge.
 
+Try
+```
+npx nmadge src/index.ts --image graph.svg
+```
+
+![npx nmadge src/index.ts --image graph.svg](./graph.svg)
+
 ## How it compares
 
 nmadge is inspired by [Madge](https://github.com/pahen/madge), but uses a modern
@@ -88,7 +95,7 @@ npm install --save-dev nmadge
 bun add --dev nmadge
 ```
 
-The published CLI requires Node.js 22 or newer. Bun is not required to run it.
+The published CLI requires Node.js 22 or newer.
 
 ## API
 
