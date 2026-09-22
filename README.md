@@ -22,14 +22,15 @@ documentation on 2026-09-22.
 | Mermaid                       | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎      |
 | D2                            | ×                                       | ◎                                                                    | ×                                        | ×                                                         | ◎      |
 | Direct SVG output             | Graphviz                                | Graphviz                                                             | ×                                        | ×                                                         | ◎      |
-| No system Graphviz required   | ×                                       | ×                                                                    | ◎                                        | ◎                                                         | ◎      |
+| SVG without system Graphviz   | ×                                       | ×                                                                    | —                                        | —                                                         | ◎      |
 | Lightweight CLI               | ◎                                       | △                                                                    | ◎                                        | Library-oriented                                          | ◎      |
 
 `◎` means a strong fit, `○` supported, `△` partial or requiring more setup,
-`×` not documented or not supported, and `—` not rated.
+`×` not documented or not supported, and `—` not rated or not applicable.
 
 - `Graphviz` in the SVG row means the external Graphviz executable is required.
-- The `No system Graphviz required` row is independent of SVG: dpdm and module-graph do not document SVG output, but neither tool requires a system Graphviz installation.
+- `—` in the SVG row means the tool does not document SVG output; this row does not judge whether its other reports can run without Graphviz.
+- dependency-cruiser's D2 reporter is documented in its [CLI reference](https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md#d2).
 - `module-graph` refers to `@thepassle/module-graph`; its documented analyzer is ESM-first and does not analyze `require()`.
 
 ## One-shot CLI
