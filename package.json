@@ -10,7 +10,16 @@
     "madge",
     "typescript"
   ],
+  "homepage": "https://github.com/halqme/nmadge#readme",
+  "bugs": {
+    "url": "https://github.com/halqme/nmadge/issues"
+  },
   "license": "MIT",
+  "author": "HALQME",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/halqme/nmadge.git"
+  },
   "bin": {
     "nmadge": "./dist/cli/main.js"
   },
