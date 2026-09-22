@@ -74,8 +74,10 @@ test("analyzes cycles, queries the graph, and renders deterministic formats", as
     expect(renderText(result.graph)).toContain("src/a.ts\n  -> src/b.ts");
     expect(renderMermaid(result.graph)).toContain('n0["src/a.ts"]');
     expect(renderD2(result.graph)).toContain('n0: "src/a.ts"');
-    expect(renderSvg(result.graph)).toContain("<marker");
-    expect(renderSvg(result.graph)).toContain("src/a.ts");
+    const svg = renderSvg(result.graph);
+    expect(svg).toContain("<marker");
+    expect(svg).toContain("src/a.ts");
+    expect(svg).toContain('<g transform="translate(0 24)">');
   } finally {
     await removeFixture(root);
   }

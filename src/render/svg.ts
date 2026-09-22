@@ -14,6 +14,7 @@ const MIN_NODE_WIDTH = 120;
 const MAX_NODE_WIDTH = 420;
 const NODE_HEIGHT = 36;
 const GRAPH_MARGIN = 24;
+const SVG_TOP_PADDING = GRAPH_MARGIN;
 
 function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -103,7 +104,7 @@ export function renderSvg(graph: ModuleGraph, options: SvgRenderOptions = {}): s
 
   const label = dagreGraph.graph();
   const width = Math.max(1, Math.ceil(label.width ?? 0));
-  const height = Math.max(1, Math.ceil(label.height ?? 0));
+  const height = Math.max(1, Math.ceil(label.height ?? 0) + SVG_TOP_PADDING);
   const elements: string[] = [];
 
   for (const edge of layoutEdges) {
@@ -139,7 +140,9 @@ export function renderSvg(graph: ModuleGraph, options: SvgRenderOptions = {}): s
     '      <path d="M 0 0 L 10 3.5 L 0 7 Z" fill="#64748b"/>',
     "    </marker>",
     "  </defs>",
-    ...elements.map((element) => `  ${element}`),
+    `  <g transform="translate(0 ${SVG_TOP_PADDING})">`,
+    ...elements.map((element) => `    ${element}`),
+    "  </g>",
     "</svg>",
   ].join("\n");
 }
