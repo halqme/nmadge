@@ -205,7 +205,7 @@ Do not bundle the package.
 `tsc` should preserve the source module structure in `dist/`.
 
 Tests use `tsconfig.test.json`, which extends this configuration, adds Bun's
-`bun-types`, and includes `test/**/*.ts`. The `check` script runs both the
+`@types/bun`, and includes `test/**/*.ts`. The `check` script runs both the
 production and test configurations.
 
 ---
