@@ -132,7 +132,7 @@ jobs:
             --runs 20 \
             --export-json "$GITHUB_WORKSPACE/benchmark.json" \
             "$BENCHMARK_WORKSPACE/consumers/madge/node_modules/.bin/madge --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src" \
-            "$BENCHMARK_WORKSPACE/consumers/oxdg/node_modules/.bin/oxdg src" \
+            "$BENCHMARK_WORKSPACE/consumers/oxdg/node_modules/.bin/oxdg --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src" \
             "$BENCHMARK_WORKSPACE/consumers/dpdm/node_modules/.bin/dpdm 'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}'"
 
       - name: Write Actions Summary
