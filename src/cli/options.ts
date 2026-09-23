@@ -1,6 +1,5 @@
 import { Command, CommanderError, InvalidArgumentError } from "commander";
 import { extname } from "node:path";
-import { createExcludeMatcher } from "../analyzer/exclude.ts";
 import type { GraphDirection } from "../types.ts";
 import { packageVersion } from "./version.ts";
 
@@ -71,11 +70,6 @@ function collectExclude(value: string, previous: string[] = []): string[] {
   if (value.length === 0) {
     throw new InvalidArgumentError("exclude pattern must not be empty");
   }
-  try {
-    createExcludeMatcher([value]);
-  } catch (error) {
-    throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
-  }
   return [...previous, value];
 }
 
@@ -113,7 +107,7 @@ function createProgram(): Command {
     .option("--include-npm", "include source files inside node_modules")
     .option("--no-type-imports", "exclude type-only imports")
     .option("--extensions <list>", "comma-separated source file extensions", parseExtensions)
-    .option("--exclude <pattern>", "exclude a glob path pattern or regex:<pattern>", collectExclude)
+    .option("--exclude <pattern>", "exclude a gitignore pattern relative to cwd", collectExclude)
     .helpOption("-h, --help", "show this help")
     .version(packageVersion, "-v, --version")
     .exitOverride();

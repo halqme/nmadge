@@ -81,10 +81,7 @@ export async function analyze(
   const extensions = normalizeExtensions(options.extensions ?? DEFAULT_EXTENSIONS);
   const includeNpm = options.includeNpm ?? false;
   const includeTypeImports = options.includeTypeImports ?? true;
-  const excludeMatcher = createExcludeMatcher(options.exclude);
-  const isExcluded = (filePath: string): boolean =>
-    excludeMatcher(filePath) ||
-    excludeMatcher(relative(canonicalRoot, filePath).split(sep).join("/"));
+  const isExcluded = createExcludeMatcher(options.exclude, canonicalRoot);
   const files = await discoverFiles(input, {
     cwd,
     includeNpm,

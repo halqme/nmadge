@@ -1,7 +1,7 @@
 export type ModuleId = string;
 
-/** A glob string, a `regex:`-prefixed regular-expression string, or a RegExp. */
-export type ExcludePattern = string | RegExp;
+/** A gitignore pattern relative to the analysis cwd. */
+export type ExcludePattern = string;
 
 export type GraphDirection = "LR" | "RL" | "TB" | "BT";
 
@@ -74,7 +74,7 @@ export interface AnalyzeOptions {
   /** Source file extensions. */
   extensions?: readonly string[];
 
-  /** Glob patterns (strings default to glob; prefix regex strings with `regex:`) for excluded modules. */
+  /** Gitignore patterns relative to cwd for excluded modules, evaluated in order. */
   exclude?: ExcludePattern | readonly ExcludePattern[];
 }
 

@@ -74,13 +74,13 @@ test("accepts options before, between, and after positional paths", () => {
     "--depends",
     "src/target.ts",
     "--exclude",
-    "glob:**/*.test.ts",
+    "**/*.test.ts",
     "--cwd",
     "project",
   ]);
   const optionsFirst = parseCliOptions([
     "--exclude",
-    "glob:**/*.test.ts",
+    "**/*.test.ts",
     "--cwd",
     "project",
     "--depends",
@@ -91,7 +91,7 @@ test("accepts options before, between, and after positional paths", () => {
   const interleaved = parseCliOptions([
     "src",
     "--exclude",
-    "glob:**/*.test.ts",
+    "**/*.test.ts",
     "--json",
     "--cwd",
     "project",
@@ -119,9 +119,9 @@ test("parses Commander aliases and analysis options", () => {
       "--ts-config",
       "tsconfig.custom.json",
       "--exclude",
-      "glob:**/*.test.ts",
+      "**/*.test.ts",
       "--exclude",
-      "regex:generated\\.ts$",
+      "generated.ts",
       "--fail-on-circular",
     ]),
   ).toMatchObject({
@@ -129,13 +129,41 @@ test("parses Commander aliases and analysis options", () => {
     orphans: true,
     extensions: ["ts", ".tsx"],
     tsconfig: "tsconfig.custom.json",
-    exclude: ["glob:**/*.test.ts", "regex:generated\\.ts$"],
+    exclude: ["**/*.test.ts", "generated.ts"],
     failOnCircular: true,
   });
   expect(parseCliOptions(["src", "--no-type-imports"]).includeTypeImports).toBe(false);
   expect(() => parseCliOptions(["src", "--orphans", "--circular"])).toThrow(
     "cannot be combined with --circular",
   );
+});
+
+test("applies repeated gitignore exclusions in order relative to --cwd", async () => {
+  const root = await createFixture({
+    "src/entry.ts": 'import "./keep.test.ts";\nimport "./drop.test.ts";\n',
+    "src/keep.test.ts": "export {};\n",
+    "src/drop.test.ts": "export {};\n",
+  });
+  try {
+    const result = runCli(
+      "src",
+      "--cwd",
+      root,
+      "--json",
+      "--exclude",
+      "*.test.ts",
+      "--exclude",
+      "!src/keep.test.ts",
+    );
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      modules: [{ id: "src/entry.ts" }, { id: "src/keep.test.ts" }],
+      dependencies: [{ from: "src/entry.ts", to: "src/keep.test.ts", status: "internal" }],
+    });
+  } finally {
+    await removeFixture(root);
+  }
 });
 
 test("runs help and version without an input path", () => {
