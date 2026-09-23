@@ -119,4 +119,4 @@ jobs:
             echo "expected exactly one release tarball, found ${#tarballs[@]}" >&2
             exit 1
           fi
-          npm stage publish "${tarballs[0]}" --provenance --access public
+          npm stage publish "./${tarballs[0]}" --provenance --access public
