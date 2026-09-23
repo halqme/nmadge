@@ -60,29 +60,6 @@ function globToRegex(pattern: string): RegExp {
   return new RegExp(`${source}$`);
 }
 
-function regexLiteral(pattern: string): RegExp | undefined {
-  if (!pattern.startsWith("/")) {
-    return undefined;
-  }
-
-  const closingSlash = pattern.lastIndexOf("/");
-  if (closingSlash <= 0) {
-    return undefined;
-  }
-
-  const source = pattern.slice(1, closingSlash);
-  const flags = pattern.slice(closingSlash + 1);
-  if (!/^[dgimsuvy]*$/.test(flags)) {
-    return undefined;
-  }
-
-  return new RegExp(source, flags);
-}
-
-function looksLikeRegex(pattern: string): boolean {
-  return /[\\^$()+|{}]/.test(pattern) || pattern.includes(".*");
-}
-
 function createPatternMatcher(pattern: ExcludePattern): PatternMatcher {
   if (pattern instanceof RegExp) {
     return {
@@ -93,9 +70,12 @@ function createPatternMatcher(pattern: ExcludePattern): PatternMatcher {
     };
   }
 
-  const regex =
-    regexLiteral(pattern) ?? (looksLikeRegex(pattern) ? new RegExp(pattern) : undefined);
-  if (regex !== undefined) {
+  if (pattern.startsWith("regex:")) {
+    const source = pattern.slice("regex:".length);
+    if (source.length === 0) {
+      throw new Error("Exclude regex patterns must not be empty");
+    }
+    const regex = new RegExp(source);
     return {
       test(value: string): boolean {
         regex.lastIndex = 0;
@@ -104,7 +84,11 @@ function createPatternMatcher(pattern: ExcludePattern): PatternMatcher {
     };
   }
 
-  const glob = globToRegex(pattern);
+  const globPattern = pattern.startsWith("glob:") ? pattern.slice("glob:".length) : pattern;
+  if (globPattern.length === 0) {
+    throw new Error("Exclude glob patterns must not be empty");
+  }
+  const glob = globToRegex(globPattern);
   return {
     test(value: string): boolean {
       return glob.test(value);

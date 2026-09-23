@@ -28,7 +28,10 @@ function setExitCode(failOnCircular: boolean, cycleCount: number): void {
   process.exitCode = failOnCircular && cycleCount > 0 ? 1 : 0;
 }
 
-function renderModuleList(modules: readonly string[]): string {
+function renderModuleList(modules: readonly string[], json: boolean): string {
+  if (json) {
+    return `${JSON.stringify(modules, null, 2)}\n`;
+  }
   return modules.length === 0 ? "" : `${modules.join("\n")}\n`;
 }
 
@@ -97,7 +100,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
         : cliOptions.leaves
           ? findLeaves(result.graph)
           : findDirectDependents(result.graph, dependsModule ?? "");
-      process.stdout.write(renderModuleList(modules));
+      process.stdout.write(renderModuleList(modules, cliOptions.format === "json"));
       setExitCode(cliOptions.failOnCircular, cycles.length);
       return;
     }

@@ -41,6 +41,26 @@ test("excludes .git and node_modules, deduplicates inputs, and does not follow d
   }
 });
 
+test("treats exclude strings as globs unless regex: is explicit", async () => {
+  const root = await createFixture({
+    "src/a+b.ts": "export const plus = true;\n",
+    "src/aaab.ts": "export const repeated = true;\n",
+  });
+
+  try {
+    const globResult = await analyze("src", { cwd: root, exclude: ["a+b.ts"] });
+    expect([...globResult.graph.nodes.keys()]).toEqual(["src/aaab.ts"]);
+
+    const regexResult = await analyze("src", {
+      cwd: root,
+      exclude: ["regex:a\\+b\\.ts$"],
+    });
+    expect([...regexResult.graph.nodes.keys()]).toEqual(["src/aaab.ts"]);
+  } finally {
+    await removeFixture(root);
+  }
+});
+
 test("excludes imported modules with suffix globs and regular expressions", async () => {
   const root = await createFixture({
     "src/entry.ts": ['import "./generated.js";', 'import "./keep.js";'].join("\n"),
@@ -55,7 +75,7 @@ test("excludes imported modules with suffix globs and regular expressions", asyn
       expect.objectContaining({ from: "src/entry.ts", to: "src/keep.ts", status: "internal" }),
     ]);
 
-    const regexResult = await analyze("src", { cwd: root, exclude: ["/keep\\.ts$/"] });
+    const regexResult = await analyze("src", { cwd: root, exclude: ["regex:keep\\.ts$"] });
     expect([...regexResult.graph.nodes.keys()]).toEqual(["src/entry.ts", "src/generated.ts"]);
   } finally {
     await removeFixture(root);

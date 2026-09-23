@@ -1,5 +1,6 @@
 export type ModuleId = string;
 
+/** A glob string, a `regex:`-prefixed regular-expression string, or a RegExp. */
 export type ExcludePattern = string | RegExp;
 
 export type GraphDirection = "LR" | "RL" | "TB" | "BT";
@@ -73,7 +74,7 @@ export interface AnalyzeOptions {
   /** Source file extensions. */
   extensions?: readonly string[];
 
-  /** Glob or regular-expression pattern(s) for excluded modules. */
+  /** Glob patterns (strings default to glob; prefix regex strings with `regex:`) for excluded modules. */
   exclude?: ExcludePattern | readonly ExcludePattern[];
 }
 

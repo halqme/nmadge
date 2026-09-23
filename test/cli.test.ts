@@ -54,6 +54,54 @@ test("accepts image options on either side of the input and rejects invalid mode
   expect(optionFirst).toEqual(inputFirst);
   expect(() => parseCliOptions(["src", "--json", "--d2"])).toThrow("mutually exclusive");
   expect(() => parseCliOptions(["src", "--image", "graph.png"])).toThrow("only supports .svg");
+
+  for (const args of [
+    ["src", "--rankdir", "TB"],
+    ["src", "--json", "--rankdir", "LR"],
+    ["src", "--d2", "--rankdir", "RL"],
+    ["src", "--leaves", "--rankdir", "BT"],
+  ]) {
+    expect(() => parseCliOptions(args)).toThrow("--rankdir can only be used");
+  }
+  expect(parseCliOptions(["src", "--mermaid", "--rankdir", "tb"]).rankdir).toBe("TB");
+  expect(parseCliOptions(["src", "--image", "graph.svg", "--rankdir", "bt"]).rankdir).toBe("BT");
+});
+
+test("accepts options before, between, and after positional paths", () => {
+  const inputFirst = parseCliOptions([
+    "src",
+    "--json",
+    "--depends",
+    "src/target.ts",
+    "--exclude",
+    "glob:**/*.test.ts",
+    "--cwd",
+    "project",
+  ]);
+  const optionsFirst = parseCliOptions([
+    "--exclude",
+    "glob:**/*.test.ts",
+    "--cwd",
+    "project",
+    "--depends",
+    "src/target.ts",
+    "--json",
+    "src",
+  ]);
+  const interleaved = parseCliOptions([
+    "src",
+    "--exclude",
+    "glob:**/*.test.ts",
+    "--json",
+    "--cwd",
+    "project",
+    "--depends",
+    "src/target.ts",
+  ]);
+
+  expect(optionsFirst).toEqual(inputFirst);
+  expect(interleaved).toEqual(inputFirst);
+  expect(parseCliOptions(["src", "--json", "other"]).paths).toEqual(["src", "other"]);
 });
 
 test("parses Commander aliases and analysis options", () => {
@@ -71,11 +119,9 @@ test("parses Commander aliases and analysis options", () => {
       "--ts-config",
       "tsconfig.custom.json",
       "--exclude",
-      "**/*.test.ts",
+      "glob:**/*.test.ts",
       "--exclude",
-      "/generated\\.ts$/",
-      "--rankdir",
-      "tb",
+      "regex:generated\\.ts$",
       "--fail-on-circular",
     ]),
   ).toMatchObject({
@@ -83,8 +129,7 @@ test("parses Commander aliases and analysis options", () => {
     orphans: true,
     extensions: ["ts", ".tsx"],
     tsconfig: "tsconfig.custom.json",
-    exclude: ["**/*.test.ts", "/generated\\.ts$/"],
-    rankdir: "TB",
+    exclude: ["glob:**/*.test.ts", "regex:generated\\.ts$"],
     failOnCircular: true,
   });
   expect(parseCliOptions(["src", "--no-type-imports"]).includeTypeImports).toBe(false);
@@ -99,6 +144,8 @@ test("runs help and version without an input path", () => {
   expect(help.stderr).toBe("");
   expect(help.stdout).toContain("Usage: oxdg <path...> [options]");
   expect(help.stdout).toContain("-c, --circular");
+  expect(help.stdout).toContain("JSON query results");
+  expect(help.stdout).toContain("Mermaid/SVG only");
 
   const version = runCli("--version");
   expect(version.status).toBe(0);
@@ -131,6 +178,17 @@ test("runs graph queries and fail-on-circular through the CLI", async () => {
     expect(runCliIn(root, "src", "--depends", "src/target.ts").stdout).toBe("src/consumer.ts\n");
     expect(runCliIn(root, "src", "--depends", "target.ts").stdout).toBe("src/consumer.ts\n");
     expect(runCliIn(root, "src", "--depends", "missing.ts").status).toBe(2);
+
+    const jsonOrphans = runCliIn(root, "--json", "src", "--orphans");
+    expect(jsonOrphans.status).toBe(0);
+    expect(JSON.parse(jsonOrphans.stdout)).toEqual(["src/a.ts", "src/consumer.ts", "src/extra.js"]);
+    const jsonLeaves = runCliIn(root, "src", "--leaves", "--json");
+    expect(jsonLeaves.status).toBe(0);
+    expect(JSON.parse(jsonLeaves.stdout)).toEqual(["src/b.ts", "src/extra.js", "src/target.ts"]);
+    const jsonDependents = runCliIn(root, "src", "--depends", "target.ts", "--json");
+    expect(jsonDependents.status).toBe(0);
+    expect(JSON.parse(jsonDependents.stdout)).toEqual(["src/consumer.ts"]);
+
     const typeScriptOnly = JSON.parse(
       runCliIn(root, "src", "--json", "--extensions", "ts").stdout,
     ) as { modules: { id: string }[] };

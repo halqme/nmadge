@@ -141,7 +141,10 @@ Query the graph:
 bunx oxdg ./src --orphans
 bunx oxdg ./src --leaves
 bunx oxdg ./src --depends src/core.ts
+bunx oxdg ./src --json --orphans
 ```
+
+Adding `--json` to a query prints the matching module IDs as a JSON array.
 
 Use structured or graph-oriented output:
 
@@ -161,9 +164,9 @@ npx oxdg ./src/index.ts --image graph.svg
 
 Without an output option, oxdg prints a plain-text dependency graph.
 
-Additional analysis options include `--cwd`, `--tsconfig` (or `--ts-config`), `--include-npm`, `--no-type-imports`, `--extensions ts,tsx`, and repeated `--exclude` glob or regular-expression patterns. Glob exclusions match path suffixes; regular expressions are applied to normalized module paths. For example, use `--exclude '**/*.test.ts'` for a glob or `--exclude '/generated\.ts$/'` for a regular expression.
+Additional analysis options include `--cwd`, `--tsconfig` (or `--ts-config`), `--include-npm`, `--no-type-imports`, `--extensions ts,tsx`, and repeated `--exclude` patterns. Exclude strings are globs by default and match path suffixes; prefix a pattern with `glob:` to mark it explicitly. Prefix regular expressions with `regex:`; they are applied to normalized module paths. For example, use `--exclude 'glob:**/*.test.ts'` for a glob or `--exclude 'regex:generated\.ts$'` for a regular expression.
 
-Short aliases include `-c`, `-j`, `-i`, and `-d`. `--rankdir` accepts `LR`, `RL`, `TB`, or `BT` for Mermaid and SVG output.
+Short aliases include `-c`, `-j`, `-i`, and `-d`. `--rankdir` accepts `LR`, `RL`, `TB`, or `BT` for Mermaid and SVG output and is rejected for other output modes.
 
 Warnings are written to stderr, so structured output on stdout remains usable by scripts and coding agents.
 

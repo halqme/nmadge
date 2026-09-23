@@ -94,7 +94,7 @@ function createProgram(): Command {
     .description("Analyze JavaScript and TypeScript module dependencies.")
     .argument("<path...>", "file or directory to analyze")
     .option("-c, --circular", "show cycles, or render only the cyclic subgraph")
-    .option("-j, --json", "render versioned JSON")
+    .option("-j, --json", "render versioned graph JSON or JSON query results")
     .option("--mermaid", "render Mermaid flowchart syntax")
     .option("--d2", "render D2 source")
     .option("-i, --image <file.svg>", "write a standalone SVG file")
@@ -102,18 +102,18 @@ function createProgram(): Command {
     .option("--leaves", "list modules without dependencies")
     .option("-d, --depends <module>", "list modules that directly depend on a module")
     .option("--fail-on-circular", "exit with code 1 when circular dependencies are found")
-    .option("--rankdir <direction>", "graph direction: LR, RL, TB, or BT", parseRankdir)
+    .option(
+      "--rankdir <direction>",
+      "graph direction (Mermaid/SVG only): LR, RL, TB, or BT",
+      parseRankdir,
+    )
     .option("--cwd <path>", "set the analysis root directory")
     .option("--tsconfig <path>", "use an explicit tsconfig.json")
     .option("--ts-config <path>", "alias for --tsconfig")
     .option("--include-npm", "include source files inside node_modules")
     .option("--no-type-imports", "exclude type-only imports")
     .option("--extensions <list>", "comma-separated source file extensions", parseExtensions)
-    .option(
-      "--exclude <pattern>",
-      "exclude a glob or regular-expression path pattern",
-      collectExclude,
-    )
+    .option("--exclude <pattern>", "exclude a glob path pattern or regex:<pattern>", collectExclude)
     .helpOption("-h, --help", "show this help")
     .version(packageVersion, "-v, --version")
     .exitOverride();
@@ -186,8 +186,12 @@ export function parseCliOptions(argv: readonly string[]): CliOptions {
   if (queryCount > 0 && values.circular === true) {
     throw new CliUsageError("query options cannot be combined with --circular");
   }
-  if (queryCount > 0 && modes.length > 0) {
+  if (queryCount > 0 && modes.some((mode) => mode !== "json")) {
     throw new CliUsageError("query options cannot be combined with a rendered output option");
+  }
+  const rankdirIsEffective = modes[0] === "mermaid" || modes[0] === "svg";
+  if (values.rankdir !== undefined && (queryCount > 0 || !rankdirIsEffective)) {
+    throw new CliUsageError("--rankdir can only be used with --mermaid or --image");
   }
 
   const tsconfig = values.tsconfig ?? values.tsConfig;
