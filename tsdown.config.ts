@@ -15,5 +15,5 @@ export default defineConfig({
   deps: {
     neverBundle: ["@dagrejs/dagre", "oxc-parser", "oxc-resolver", "oxc-walker"],
   },
-  minify: false,
+  minify: true,
 });

@@ -77,7 +77,7 @@ oxdg keeps its own package roughly the same size as Madge while requiring a much
 | Tool        | Package only | Package + dependencies |
 | ----------- | -----------: | ---------------------: |
 | Madge@8.0.0 |       103 KB |                 102 MB |
-| oxdg@0.1.0  |       104 KB |               **3 MB** |
+| oxdg@0.1.0  |       120 KB |               **3 MB** |
 
 The package itself is almost the same size, while the installed dependency footprint is roughly **34× smaller** in this comparison.
 
