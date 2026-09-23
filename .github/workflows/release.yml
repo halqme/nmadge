@@ -64,8 +64,8 @@ jobs:
       - name: Build
         run: bun run build
 
-      - name: Check release package
-        run: bun run release:check -- --output release-package
+      - name: Check package and report footprint
+        run: bun run release:check -- --output release-package --report package-footprint.json --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Verify package version matches tag
         shell: bash
@@ -83,7 +83,9 @@ jobs:
         with:
           name: release-package
           if-no-files-found: error
-          path: release-package/*.tgz
+          path: |
+            release-package/*.tgz
+            package-footprint.json
 
   stage:
     needs: verify

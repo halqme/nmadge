@@ -1,5 +1,10 @@
 # oxdg
 
+[![CI](https://github.com/halqme/oxdg/actions/workflows/ci.yml/badge.svg)](https://github.com/halqme/oxdg/actions/workflows/ci.yml)
+[![Benchmark](https://github.com/halqme/oxdg/actions/workflows/benchmark.yml/badge.svg)](https://github.com/halqme/oxdg/actions/workflows/benchmark.yml)
+[![npm version](https://img.shields.io/npm/v/oxdg)](https://www.npmjs.com/package/oxdg)
+[![license](https://img.shields.io/npm/l/oxdg)](LICENSE)
+
 A fast, lightweight dependency graph CLI for modern JavaScript and TypeScript, built on [Oxc](https://oxc.rs/).
 
 **oxdg = Oxc Dependency Graph**
@@ -30,56 +35,25 @@ npx oxdg src/index.ts --image graph.svg
 
 ## Performance
 
-oxdg is intentionally thin: Oxc handles parsing and module resolution, while oxdg focuses on building and querying the dependency graph.
+Runtime performance is measured by the dedicated [Benchmark workflow](https://github.com/halqme/oxdg/actions/workflows/benchmark.yml) on a fixed Hono corpus. It runs weekly, on published releases, or by manual dispatch; every successful run updates the GitHub Pages report and performance badges below.
 
-On the Hono v4.13.8 source tree, local `hyperfine` benchmarks produced the following results.
+To publish the report, enable GitHub Pages for the repository with **GitHub Actions** selected as the build and deployment source in Settings → Pages.
 
-### Directory-wide analysis
+**Corpus:** [honojs/hono](https://github.com/honojs/hono) at [`098e11912ab244c5c33931de007f04dc8e3c2929`](https://github.com/honojs/hono/commit/098e11912ab244c5c33931de007f04dc8e3c2929) · **Runner:** GitHub-hosted `ubuntu-latest` (image and CPU recorded per run) · **hyperfine:** 8 warmups, 20 runs.
 
-| Tool        |         Mean |
-| ----------- | -----------: |
-| oxdg@0.1.0  | **316.5 ms** |
-| dpdm@4.3.0  |     488.2 ms |
-| Madge@8.0.0 |     954.3 ms |
+[![Hono benchmark runtime](https://img.shields.io/endpoint?url=https%3A%2F%2Fhalqme.github.io%2Foxdg%2Fbadges%2Fruntime.json)](https://halqme.github.io/oxdg/)
+[![Hono vs Madge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhalqme.github.io%2Foxdg%2Fbadges%2Fvs-madge.json)](https://halqme.github.io/oxdg/)
 
-In this run, oxdg was **1.54× faster than dpdm** and **3.01× faster than Madge**.
+| Workload       | Input                              | Representative result                                                                                                                                                                                                                                                 |
+| -------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Directory-wide | Hono `src`; all 8 JS/TS extensions | Latest mean and relative performance are shown in the badges and [full report](https://halqme.github.io/oxdg/). The report includes source file count and exact commands.                                                                                             |
+| Entrypoint     | Hono `src/index.ts`                | [![Hono entrypoint](https://img.shields.io/endpoint?url=https%3A%2F%2Fhalqme.github.io%2Foxdg%2Fbadges%2Fentrypoint.json)](https://halqme.github.io/oxdg/) · Relative performance and all timing statistics are in the [full report](https://halqme.github.io/oxdg/). |
 
-```bash
-hyperfine --warmup 8 \
-  'bunx --no-install madge --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src' \
-  'bunx --no-install oxdg src' \
-  "bunx --no-install dpdm 'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}'"
-```
-
-### Entrypoint analysis
-
-| Tool        |        Mean |
-| ----------- | ----------: |
-| oxdg@0.1.0  | **81.5 ms** |
-| dpdm@4.3.0  |    239.7 ms |
-| Madge@8.0.0 |    336.8 ms |
-
-In this run, oxdg was **2.94× faster than dpdm** and **4.13× faster than Madge**.
-
-```bash
-hyperfine --warmup 8 \
-  'bunx --no-install madge src/index.ts' \
-  'bunx --no-install oxdg src/index.ts' \
-  'bunx --no-install dpdm src/index.ts'
-```
-
-These are local measurements on one project and should not be treated as universal performance claims. The commands are included so the comparison can be reproduced on other projects and machines.
+The entrypoint workload uses the same `src/index.ts` input and the same eight JS/TS extensions for each CLI. The report records mean, standard deviation, median, minimum, maximum, exact tool commands, corpus commit, and runner/runtime metadata. Results represent this fixed corpus and runner, not every project or machine.
 
 ## Package footprint
 
-oxdg keeps its own package roughly the same size as Madge while requiring a much smaller installed dependency tree.
-
-| Tool        | Package only | Package + dependencies |
-| ----------- | -----------: | ---------------------: |
-| Madge@8.0.0 |       103 KB |                 102 MB |
-| oxdg@0.1.0  |       120 KB |               **3 MB** |
-
-The package itself is almost the same size, while the installed dependency footprint is roughly **34× smaller** in this comparison.
+Package footprint is measured separately from runtime performance on every CI pull request and release validation. The shared check reports packed and unpacked package sizes plus `node_modules` size after a clean install in the GitHub Actions Summary. It also enforces the existing **500 KiB unpacked-package limit**.
 
 ## How it compares
 

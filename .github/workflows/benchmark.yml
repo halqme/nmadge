@@ -5,14 +5,22 @@ on:
   release:
     types:
       - published
+  schedule:
+    - cron: "0 4 * * 1"
 
 permissions:
   contents: read
 
+concurrency:
+  group: benchmark-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
+    permissions:
+      contents: read
     env:
       HONO_REPOSITORY: https://github.com/honojs/hono.git
       HONO_COMMIT: 098e11912ab244c5c33931de007f04dc8e3c2929
@@ -21,6 +29,7 @@ jobs:
       NODE_VERSION: 24.x
       BUN_VERSION: 1.4.2
       HYPERFINE_VERSION: 1.19.0
+      RUNNER_LABEL: ubuntu-latest
     steps:
       - name: Check out benchmarked source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,129 +75,17 @@ jobs:
             echo "HONO_DIR=$hono_dir"
           } >> "$GITHUB_ENV"
 
-      - name: Pack and install comparison tools in fresh projects
-        run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --output benchmark-package-sizes.json
+      - name: Check package and report footprint
+        run: node scripts/package-footprint.mjs --output "$BENCHMARK_WORKSPACE/packs/oxdg" --report benchmark-package-footprint.json --summary "$GITHUB_STEP_SUMMARY"
 
-      - name: Record benchmark environment
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { execFileSync } from "node:child_process";
-          import { readFileSync, writeFileSync } from "node:fs";
+      - name: Install comparison tools and save dependency locks
+        run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --locks benchmark-package-locks --package-footprint benchmark-package-footprint.json
 
-          const readCommand = (command, args = []) =>
-            execFileSync(command, args, { encoding: "utf8" }).trim();
-          const metadata = {
-            runner: {
-              label: "ubuntu-latest",
-              imageOS: process.env.ImageOS ?? "unknown",
-              imageVersion: process.env.ImageVersion ?? "unknown",
-            },
-            workspace: {
-              root: process.env.BENCHMARK_WORKSPACE,
-              layout: "{hono,packs/{oxdg,madge,dpdm},consumers/{oxdg,madge,dpdm}}",
-            },
-            host: {
-              uname: readCommand("uname", ["-a"]),
-              lscpu: JSON.parse(readCommand("lscpu", ["-J"])),
-            },
-            hono: {
-              repository: process.env.HONO_REPOSITORY,
-              commit: readCommand("git", ["-C", process.env.HONO_DIR, "rev-parse", "HEAD"]),
-            },
-            madge: `madge@${process.env.MADGE_VERSION}`,
-            dpdm: `dpdm@${process.env.DPDM_VERSION}`,
-            oxdg: {
-              version: JSON.parse(readFileSync("package.json", "utf8")).version,
-              source: "current checkout, bun run build, npm pack",
-            },
-            node: {
-              requested: process.env.NODE_VERSION,
-              actual: process.version,
-            },
-            bun: {
-              requested: process.env.BUN_VERSION,
-              actual: readCommand("bun", ["--version"]),
-            },
-            npm: readCommand("npm", ["--version"]),
-            hyperfine: {
-              requested: process.env.HYPERFINE_VERSION,
-              actual: readCommand("hyperfine", ["--version"]),
-            },
-          };
-          if (metadata.hono.commit !== process.env.HONO_COMMIT) {
-            throw new Error(`Hono commit ${metadata.hono.commit} does not match ${process.env.HONO_COMMIT}`);
-          }
-          writeFileSync("benchmark-metadata.json", `${JSON.stringify(metadata, null, 2)}\n`);
-          NODE
+      - name: Run both benchmark workloads and record metadata
+        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --workspace "$BENCHMARK_WORKSPACE" --package-footprint benchmark-package-footprint.json --output .
 
-      - name: Run directory benchmark
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$HONO_DIR"
-          hyperfine \
-            --warmup 8 \
-            --runs 20 \
-            --export-json "$GITHUB_WORKSPACE/benchmark.json" \
-            "$BENCHMARK_WORKSPACE/consumers/madge/node_modules/.bin/madge --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src" \
-            "$BENCHMARK_WORKSPACE/consumers/oxdg/node_modules/.bin/oxdg --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src" \
-            "$BENCHMARK_WORKSPACE/consumers/dpdm/node_modules/.bin/dpdm 'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}'"
-
-      - name: Write Actions Summary
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { appendFileSync, readFileSync } from "node:fs";
-
-          const metadata = JSON.parse(readFileSync("benchmark-metadata.json", "utf8"));
-          const sizes = JSON.parse(readFileSync("benchmark-package-sizes.json", "utf8"));
-          const benchmark = JSON.parse(readFileSync("benchmark.json", "utf8"));
-          const formatBytes = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
-          const formatDuration = (seconds) => `${(seconds * 1000).toFixed(1)} ms`;
-          const toolName = (command) =>
-            command.includes("/madge/") ? "Madge" : command.includes("/dpdm/") ? "dpdm" : "oxdg";
-
-          const lines = [
-            "## Benchmark",
-            "",
-            "### Fixed workspace",
-            "",
-            "| Input | Value |",
-            "| --- | --- |",
-            `| Runner | ${metadata.runner.label} |`,
-            `| Runner image | ${metadata.runner.imageOS} / ${metadata.runner.imageVersion} |`,
-            `| Hono commit | \`${metadata.hono.commit}\` |`,
-            `| Madge | ${metadata.madge} |`,
-            `| dpdm | ${metadata.dpdm} |`,
-            `| oxdg | oxdg@${metadata.oxdg.version} (${metadata.oxdg.source}) |`,
-            `| Node.js | ${metadata.node.requested} (${metadata.node.actual}) |`,
-            `| Bun | ${metadata.bun.requested} (${metadata.bun.actual}) |`,
-            `| npm | ${metadata.npm} |`,
-            `| hyperfine | ${metadata.hyperfine.requested} (${metadata.hyperfine.actual}) |`,
-            "",
-            "### Directory-wide analysis",
-            "",
-            "| Tool | Mean | Median | Min | Max |",
-            "| --- | ---: | ---: | ---: | ---: |",
-            ...benchmark.results.map(
-              (result) =>
-                `| ${toolName(result.command)} | ${formatDuration(result.mean)} | ${formatDuration(result.median)} | ${formatDuration(result.min)} | ${formatDuration(result.max)} |`,
-            ),
-            "",
-            "### Package footprint",
-            "",
-            "| Package | Unpacked package | node_modules after install |",
-            "| --- | ---: | ---: |",
-            ...sizes.packages.map(
-              (pkg) =>
-                `| ${pkg.name}@${pkg.version} | ${formatBytes(pkg.unpackedSizeBytes)} | ${formatBytes(pkg.nodeModulesSizeBytes)} |`,
-            ),
-            "",
-            `Raw results, dependency locks, and measurements are attached as the \`benchmark\` artifact.`,
-          ];
-          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
-          NODE
+      - name: Generate normalized report, badges, and Actions Summary
+        run: node scripts/benchmark-report.mjs --directory benchmark-directory.json --entrypoint benchmark-entrypoint.json --metadata benchmark-metadata.json --output benchmark-report --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -196,7 +93,41 @@ jobs:
           name: benchmark
           if-no-files-found: error
           path: |
-            benchmark.json
+            benchmark-directory.json
+            benchmark-entrypoint.json
             benchmark-metadata.json
-            benchmark-package-sizes.json
+            benchmark-commands.json
+            benchmark-package-footprint.json
             benchmark-package-locks/
+            benchmark-report/
+            bun.lock
+
+  publish-benchmark:
+    needs: benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Download benchmark artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: benchmark
+          path: benchmark-artifact
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: benchmark-artifact/benchmark-report
+
+      - name: Deploy benchmark report
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

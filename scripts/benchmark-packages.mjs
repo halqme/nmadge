@@ -1,14 +1,10 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execFile = promisify(execFileCallback);
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const projectRoot = fileURLToPath(new URL("../", import.meta.url));
-const packageJson = JSON.parse(await readFile(join(projectRoot, "package.json"), "utf8"));
 
 function optionValue(name) {
   const index = process.argv.indexOf(name);
@@ -36,138 +32,87 @@ function parsePackResult(stdout) {
   return results[0];
 }
 
-async function directorySize(directory) {
-  let size = 0;
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      size += await directorySize(path);
-    } else {
-      size += (await lstat(path)).size;
-    }
-  }
-  return size;
-}
-
 async function packPackage({ destination, cwd, spec }) {
   await rm(destination, { force: true, recursive: true });
   await mkdir(destination, { recursive: true });
-  const args = ["pack", "--json", "--pack-destination", destination];
-  if (spec) {
-    args.push(spec);
-  }
-  const { stdout } = await run(npm, args, cwd);
-  const packResult = parsePackResult(stdout);
-  if (typeof packResult.unpackedSize !== "number") {
-    throw new Error(`npm pack did not report an unpacked size for ${spec ?? "oxdg"}`);
-  }
-  const tarball = join(destination, packResult.filename);
-  return {
-    ...packResult,
-    tarball,
-    tarballSize: (await lstat(tarball)).size,
-  };
+  const { stdout } = await run(
+    npm,
+    ["pack", "--json", "--pack-destination", destination, spec],
+    cwd,
+  );
+  const packed = parsePackResult(stdout);
+  return join(destination, packed.filename);
 }
 
-async function installPackage({ consumer, packageName, tarball, resolutionDirectory }) {
+async function installPackage({ consumer, packageName, tarball, lockDirectory }) {
   await rm(consumer, { force: true, recursive: true });
   await mkdir(consumer, { recursive: true });
   await writeFile(
     join(consumer, "package.json"),
     JSON.stringify(
-      {
-        name: `oxdg-benchmark-${packageName}`,
-        private: true,
-        type: "module",
-      },
+      { name: `oxdg-benchmark-${packageName}`, private: true, type: "module" },
       null,
       2,
     ) + "\n",
     "utf8",
   );
   await run(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], consumer);
-  const { stdout: dependencyTreeOutput } = await run(npm, ["ls", "--all", "--json"], consumer);
-  const dependencyTree = JSON.parse(dependencyTreeOutput);
+  const { stdout } = await run(npm, ["ls", "--all", "--json"], consumer);
   await writeFile(
-    join(resolutionDirectory, `${packageName}.npm-ls.json`),
-    JSON.stringify(dependencyTree, null, 2) + "\n",
-    "utf8",
+    join(lockDirectory, `${packageName}.npm-ls.json`),
+    `${JSON.stringify(JSON.parse(stdout), null, 2)}\n`,
   );
   await writeFile(
-    join(resolutionDirectory, `${packageName}.package-lock.json`),
+    join(lockDirectory, `${packageName}.package-lock.json`),
     await readFile(join(consumer, "package-lock.json"), "utf8"),
-    "utf8",
   );
-  return directorySize(join(consumer, "node_modules"));
 }
 
 const workspaceOption = optionValue("--workspace");
-const outputOption = optionValue("--output");
-const workspace = resolve(workspaceOption ?? (await mkdtemp(join(tmpdir(), "oxdg-benchmark-"))));
-const output = resolve(outputOption ?? join(projectRoot, "benchmark-package-sizes.json"));
-const resolutionDirectory = join(dirname(output), "benchmark-package-locks");
-await mkdir(workspace, { recursive: true });
-await mkdir(join(workspace, "packs"), { recursive: true });
-await mkdir(join(workspace, "consumers"), { recursive: true });
-await mkdir(resolutionDirectory, { recursive: true });
-await writeFile(
-  join(workspace, "package.json"),
-  JSON.stringify({ name: "oxdg-benchmark-workspace", private: true }) + "\n",
-  "utf8",
-);
-
-const packageDefinitions = [
-  {
-    key: "oxdg",
-    source: "current checkout",
-    cwd: projectRoot,
-  },
-  {
-    key: "madge",
-    source: "npm registry",
-    spec: "madge@8.0.0",
-    cwd: workspace,
-  },
-  {
-    key: "dpdm",
-    source: "npm registry",
-    spec: "dpdm@4.3.0",
-    cwd: workspace,
-  },
-];
-
-const packages = [];
-for (const definition of packageDefinitions) {
-  const packed = await packPackage({
-    cwd: definition.cwd,
-    destination: join(workspace, "packs", definition.key),
-    spec: definition.spec,
-  });
-  const consumer = join(workspace, "consumers", definition.key);
-  const nodeModulesSize = await installPackage({
-    consumer,
-    packageName: definition.key,
-    resolutionDirectory,
-    tarball: packed.tarball,
-  });
-  packages.push({
-    name: packed.name,
-    version: packed.version,
-    source: definition.source,
-    spec: definition.spec ?? `oxdg@${packageJson.version}`,
-    tarball: basename(packed.tarball),
-    tarballSizeBytes: packed.tarballSize,
-    unpackedSizeBytes: packed.unpackedSize,
-    nodeModulesSizeBytes: nodeModulesSize,
-    integrity: packed.integrity,
-    shasum: packed.shasum,
-  });
+const lockDirectoryOption = optionValue("--locks");
+const packageFootprintOption = optionValue("--package-footprint");
+if (!workspaceOption || !lockDirectoryOption || !packageFootprintOption) {
+  throw new Error(
+    "usage: node scripts/benchmark-packages.mjs --workspace DIR --locks DIR --package-footprint FILE",
+  );
 }
 
-const result = {
-  generatedAt: new Date().toISOString(),
-  workspace,
-  packages,
-};
-await writeFile(output, JSON.stringify(result, null, 2) + "\n", "utf8");
-console.log(JSON.stringify(result, null, 2));
+const workspace = resolve(workspaceOption);
+const lockDirectory = resolve(lockDirectoryOption);
+const packageFootprint = JSON.parse(await readFile(resolve(packageFootprintOption), "utf8"));
+if (packageFootprint.package !== "oxdg" || typeof packageFootprint.tarballFilename !== "string") {
+  throw new Error("package footprint report is missing the oxdg tarball filename");
+}
+const oxdgTarball = join(workspace, "packs", "oxdg", packageFootprint.tarballFilename);
+await lstat(oxdgTarball);
+await mkdir(join(workspace, "packs"), { recursive: true });
+await mkdir(join(workspace, "consumers"), { recursive: true });
+await mkdir(lockDirectory, { recursive: true });
+await writeFile(
+  join(workspace, "package.json"),
+  `${JSON.stringify({ name: "oxdg-benchmark-workspace", private: true })}\n`,
+);
+
+const packages = [
+  { key: "oxdg", tarball: oxdgTarball },
+  { key: "madge", spec: `madge@${process.env.MADGE_VERSION ?? "8.0.0"}` },
+  { key: "dpdm", spec: `dpdm@${process.env.DPDM_VERSION ?? "4.3.0"}` },
+];
+for (const definition of packages) {
+  const tarball =
+    definition.tarball ??
+    (await packPackage({
+      destination: join(workspace, "packs", definition.key),
+      cwd: workspace,
+      spec: definition.spec,
+    }));
+  await installPackage({
+    consumer: join(workspace, "consumers", definition.key),
+    packageName: definition.key,
+    tarball,
+    lockDirectory,
+  });
+}
+console.log(
+  `Installed oxdg, Madge, and dpdm in clean consumers; dependency locks saved to ${lockDirectory}`,
+);
