@@ -121,3 +121,56 @@ import Foo from "./Foo.vue"
     await removeFixture(root);
   }
 });
+
+test("ignores comments and nested template markup while parsing script language aliases", async () => {
+  const root = await createFixture({
+    "src/Component.vue": `<!-- <script>import CommentLeak from "./CommentLeak.vue";</script> -->
+<template>
+  <template v-if="ready">
+    <div title='greater > than' />
+  </template>
+  <script>import TemplateLeak from "./TemplateLeak.vue";</script>
+</template>
+<script lang='typescript'>
+import type { Message } from "./types.ts";
+const message: Message = { text: "setup" };
+require(runtimeModule);
+</script>
+<script setup lang=tsx>
+import Child from "./Child.vue";
+const view = <Child />;
+import(componentName);
+</script>
+`,
+    "src/types.ts": "export interface Message { text: string; }\n",
+    "src/Child.vue": "<template><span>Child</span></template>\n",
+  });
+
+  try {
+    const result = await analyze("src/Component.vue", { cwd: root });
+    const componentEdges = result.graph.edges.filter((edge) => edge.from === "src/Component.vue");
+
+    expect(componentEdges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          specifier: "./types.ts",
+          kind: "import",
+          typeOnly: true,
+          status: "internal",
+        }),
+        expect.objectContaining({
+          specifier: "./Child.vue",
+          kind: "import",
+          status: "internal",
+        }),
+      ]),
+    );
+    expect(componentEdges).toHaveLength(2);
+    expect(result.warnings.map((warning) => warning.message)).toEqual([
+      "dynamic import uses a non-static module specifier",
+      "require uses a non-static module specifier",
+    ]);
+  } finally {
+    await removeFixture(root);
+  }
+});

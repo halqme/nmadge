@@ -44,6 +44,43 @@ test("renders graph formats with stable module ordering", async () => {
   }
 });
 
+test("renders empty graphs as empty text", () => {
+  const graph: ModuleGraph = { rootDir: "/project", nodes: new Map(), edges: [] };
+
+  expect(renderText(graph)).toBe("");
+});
+
+test("omits external and unresolved edges while retaining source modules", () => {
+  const graph: ModuleGraph = {
+    rootDir: "/project",
+    nodes: new Map<string, { id: string; absolutePath: string }>([
+      ["src/entry.ts", { id: "src/entry.ts", absolutePath: "/project/src/entry.ts" }],
+      [
+        "src/standalone.ts",
+        { id: "src/standalone.ts", absolutePath: "/project/src/standalone.ts" },
+      ],
+    ]),
+    edges: [
+      {
+        from: "src/entry.ts",
+        specifier: "external-package",
+        kind: "import",
+        typeOnly: false,
+        status: "external",
+      },
+      {
+        from: "src/entry.ts",
+        specifier: "./missing.js",
+        kind: "import",
+        typeOnly: false,
+        status: "unresolved",
+      },
+    ],
+  };
+
+  expect(renderText(graph)).toBe("src/entry.ts\n\nsrc/standalone.ts");
+});
+
 test("escapes module paths in SVG, Mermaid, and D2 output", async () => {
   const root = await createFixture({
     "a&b.ts": "export {};\n",
