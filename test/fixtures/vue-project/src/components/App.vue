@@ -1,3 +1,7 @@
+<i18n lang="json">
+{ "message": "<i18n>" }
+</i18n>
+
 <template>
   <main>App</main>
 </template>

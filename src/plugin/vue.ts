@@ -78,17 +78,17 @@ function findNextVueTag(source: string, start: number): VueTag | undefined {
 }
 
 function findVueBlockClose(source: string, name: string, start: number): VueTag | undefined {
+  const nestedTemplates = name === "template";
   let depth = 1;
   let position = start;
   let tag = findNextVueTag(source, position);
   while (tag) {
     if (tag.name === name) {
       if (tag.closing) {
-        depth -= 1;
-        if (depth === 0) {
+        if (!nestedTemplates || --depth === 0) {
           return tag;
         }
-      } else if (!tag.selfClosing) {
+      } else if (nestedTemplates && !tag.selfClosing) {
         depth += 1;
       }
     }
