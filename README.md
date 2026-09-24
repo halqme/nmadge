@@ -24,6 +24,7 @@ npx oxdg src/index.ts --image graph.svg
 ## Features
 
 - JavaScript and TypeScript
+- Vue single-file components, extracting imports from `<script>` and `<script setup>` blocks written in JS, TS, JSX, or TSX
 - ESM and CommonJS
 - Static imports, dynamic imports, `require()`, `require.resolve()`, and re-exports
 - Type-only imports and TypeScript path aliases

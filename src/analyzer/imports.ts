@@ -1,5 +1,7 @@
 import { parseSync } from "oxc-parser";
 import { walk } from "oxc-walker";
+import { createVueSourceExtractor, type VueScriptLanguage } from "../plugin/vue.ts";
+import type { SourceExtractor } from "../plugin/types.ts";
 import type { AnalysisWarning, DependencyKind } from "../types.ts";
 
 export interface ImportReference {
@@ -67,10 +69,15 @@ function addCallReference(
   addDynamicWarning(warnings, filePath, kind);
 }
 
-export function extractImports(source: string, filePath: string): ImportExtractionResult {
+function extractSourceImports(
+  source: string,
+  filePath: string,
+  language?: VueScriptLanguage,
+): ImportExtractionResult {
   const result = parseSync(filePath, source, {
     astType: "ts",
     sourceType: "unambiguous",
+    ...(language ? { lang: language } : {}),
   });
   const references: LocatedReference[] = [];
   const warnings: AnalysisWarning[] = result.errors.map((error) => ({
@@ -168,4 +175,13 @@ export function extractImports(source: string, filePath: string): ImportExtracti
     imports: references.map(({ reference }) => reference),
     warnings,
   };
+}
+
+export const sourceExtractors: readonly SourceExtractor[] = [
+  createVueSourceExtractor(extractSourceImports),
+];
+
+export function extractImports(source: string, filePath: string): ImportExtractionResult {
+  const extractor = sourceExtractors.find((candidate) => candidate.supports(filePath));
+  return extractor ? extractor.extract(source, filePath) : extractSourceImports(source, filePath);
 }

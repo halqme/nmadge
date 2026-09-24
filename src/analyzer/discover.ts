@@ -11,6 +11,7 @@ export const DEFAULT_EXTENSIONS = [
   ".cjs",
   ".mts",
   ".cts",
+  ".vue",
 ] as const;
 
 export interface RequiredDiscoveryOptions {
