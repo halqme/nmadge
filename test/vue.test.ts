@@ -61,3 +61,18 @@ test("discovers Vue files and extracts JS, TS, JSX, and TSX script dependencies"
   });
   expect(result.warnings).toEqual([]);
 });
+
+test("an explicit extension list replaces default Vue extensions", async () => {
+  const result = await analyze("src/main.ts", {
+    cwd: fixtureRoot,
+    extensions: ["ts"],
+  });
+
+  expect([...result.graph.nodes.keys()]).toEqual(["src/main.ts"]);
+  expect(result.graph.edges).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ specifier: "./components/App.vue", status: "unresolved" }),
+      expect.objectContaining({ specifier: "./components/Button", status: "unresolved" }),
+    ]),
+  );
+});

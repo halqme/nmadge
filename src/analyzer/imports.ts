@@ -1,7 +1,7 @@
 import { parseSync } from "oxc-parser";
 import { walk } from "oxc-walker";
-import { createVueSourceExtractor, type VueScriptLanguage } from "../plugin/vue.ts";
-import type { SourceExtractor } from "../plugin/types.ts";
+import { SOURCE_EXTRACTOR_PLUGINS } from "../plugin/registry.ts";
+import type { ScriptLanguage, SourceExtractor } from "../plugin/types.ts";
 import type { AnalysisWarning, DependencyKind } from "../types.ts";
 
 export interface ImportReference {
@@ -72,7 +72,7 @@ function addCallReference(
 function extractSourceImports(
   source: string,
   filePath: string,
-  language?: VueScriptLanguage,
+  language?: ScriptLanguage,
 ): ImportExtractionResult {
   const result = parseSync(filePath, source, {
     astType: "ts",
@@ -177,9 +177,9 @@ function extractSourceImports(
   };
 }
 
-export const sourceExtractors: readonly SourceExtractor[] = [
-  createVueSourceExtractor(extractSourceImports),
-];
+export const sourceExtractors: readonly SourceExtractor[] = SOURCE_EXTRACTOR_PLUGINS.map((plugin) =>
+  plugin.create(extractSourceImports),
+);
 
 export function extractImports(source: string, filePath: string): ImportExtractionResult {
   const extractor = sourceExtractors.find((candidate) => candidate.supports(filePath));

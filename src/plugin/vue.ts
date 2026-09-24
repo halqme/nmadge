@@ -1,14 +1,9 @@
 import { extname } from "node:path";
-import type { ImportExtractionResult } from "../analyzer/imports.ts";
-import type { SourceExtractor } from "./types.ts";
+import type { ScriptExtractor, ScriptLanguage, SourceExtractorPlugin } from "./types.ts";
 
-export type VueScriptLanguage = "js" | "jsx" | "ts" | "tsx";
+type VueScriptLanguage = ScriptLanguage;
 
-type ScriptExtractor = (
-  source: string,
-  filePath: string,
-  language: VueScriptLanguage,
-) => ImportExtractionResult;
+const VUE_EXTENSIONS = [".vue"] as const;
 
 interface VueTag {
   name: string;
@@ -138,12 +133,13 @@ function vueScriptBlocks(source: string): VueScriptBlock[] {
   return blocks;
 }
 
-export function createVueSourceExtractor(extractScript: ScriptExtractor): SourceExtractor {
+function createVueSourceExtractor(extractScript: ScriptExtractor) {
   return {
-    supports(filePath) {
-      return extname(filePath).toLowerCase() === ".vue";
+    supports(filePath: string) {
+      const extension = extname(filePath).toLowerCase();
+      return VUE_EXTENSIONS.some((supported) => supported === extension);
     },
-    extract(source, filePath) {
+    extract(source: string, filePath: string) {
       const extractions = vueScriptBlocks(source).map((block) =>
         extractScript(block.source, filePath, block.language),
       );
@@ -157,3 +153,8 @@ export function createVueSourceExtractor(extractScript: ScriptExtractor): Source
     },
   };
 }
+
+export const vueSourceExtractorPlugin: SourceExtractorPlugin = {
+  extensions: VUE_EXTENSIONS,
+  create: createVueSourceExtractor,
+};
