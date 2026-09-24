@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { analyze } from "../src/analyzer/analyze.ts";
+import { createFixture, removeFixture } from "./fixtures.ts";
 import type { DependencyKind } from "../src/types.ts";
 
 const fixtureRoot = fileURLToPath(new URL("./fixtures/vue-project/", import.meta.url));
@@ -75,4 +76,48 @@ test("an explicit extension list replaces default Vue extensions", async () => {
       expect.objectContaining({ specifier: "./components/Button", status: "unresolved" }),
     ]),
   );
+});
+
+test("ignores tag-like markup inside Vue templates and script strings", async () => {
+  const root = await createFixture({
+    "src/main.ts": 'import "./Component.vue";\n',
+    "src/Component.vue": `<template>
+  <div data-example="<script>">hello</div>
+</template>
+
+<script setup lang="ts">
+const html = "<div>not a tag for SFC parser</div>"
+import Foo from "./Foo.vue"
+</script>
+`,
+    "src/Foo.vue": "<template><div>Foo</div></template>\n",
+  });
+
+  try {
+    const result = await analyze("src/main.ts", { cwd: root });
+
+    expect(new Set(result.graph.nodes.keys())).toEqual(
+      new Set(["src/main.ts", "src/Component.vue", "src/Foo.vue"]),
+    );
+    expect(result.graph.edges).toHaveLength(2);
+    expect(result.graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: "src/main.ts",
+          to: "src/Component.vue",
+          specifier: "./Component.vue",
+          status: "internal",
+        }),
+        expect.objectContaining({
+          from: "src/Component.vue",
+          to: "src/Foo.vue",
+          specifier: "./Foo.vue",
+          status: "internal",
+        }),
+      ]),
+    );
+    expect(result.warnings).toEqual([]);
+  } finally {
+    await removeFixture(root);
+  }
 });
