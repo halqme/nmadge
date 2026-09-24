@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 
-const reportScript = join(import.meta.dir, "../scripts/benchmark-report.mjs");
+const reportScript = join(import.meta.dir, "../../scripts/benchmark-report.mjs");
 const directoryCommands = {
   madge: "madge --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src",
   oxdg: "oxdg --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src",

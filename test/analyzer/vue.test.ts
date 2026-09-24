@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
-import { analyze } from "../src/analyzer/analyze.ts";
-import { createFixture, removeFixture } from "./fixtures.ts";
-import type { DependencyKind } from "../src/types.ts";
+import { analyze } from "../../src/analyzer/analyze.ts";
+import { createFixture, removeFixture } from "../fixtures.ts";
+import type { DependencyKind } from "../../src/types.ts";
 
-const fixtureRoot = fileURLToPath(new URL("./fixtures/vue-project/", import.meta.url));
+const fixtureRoot = fileURLToPath(new URL("../fixtures/vue-project/", import.meta.url));
 
 test("discovers Vue files and extracts JS, TS, JSX, and TSX script dependencies", async () => {
   const result = await analyze(".", { cwd: fixtureRoot });
