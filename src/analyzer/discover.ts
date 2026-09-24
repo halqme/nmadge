@@ -1,16 +1,13 @@
 import { lstat, readdir, realpath, stat } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
+import { SOURCE_EXTRACTOR_PLUGINS } from "../plugin/registry.ts";
 import type { AnalyzeInput } from "../types.ts";
 
+const CORE_EXTENSIONS = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts"] as const;
+
 export const DEFAULT_EXTENSIONS = [
-  ".js",
-  ".jsx",
-  ".ts",
-  ".tsx",
-  ".mjs",
-  ".cjs",
-  ".mts",
-  ".cts",
+  ...CORE_EXTENSIONS,
+  ...new Set(SOURCE_EXTRACTOR_PLUGINS.flatMap((plugin) => plugin.extensions)),
 ] as const;
 
 export interface RequiredDiscoveryOptions {
