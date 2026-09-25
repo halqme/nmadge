@@ -1,0 +1,5 @@
+{
+  "name": "mixed-modules-fixture",
+  "private": true,
+  "type": "module"
+}

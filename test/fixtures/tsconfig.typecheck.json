@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./tsconfig-paths/src/*"],
+      "@models/*": ["./tsconfig-paths/packages/models/src/*"]
+    }
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["vue-project"]
+}

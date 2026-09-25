@@ -42,7 +42,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "check": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p test/fixtures/tsconfig.typecheck.json --noEmit",
     "lint": "oxlint src",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",

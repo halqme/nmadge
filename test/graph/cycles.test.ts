@@ -1,16 +1,10 @@
 import { expect, test } from "bun:test";
-import { analyze } from "../src/analyzer/analyze.ts";
-import { findCycles } from "../src/graph/cycles.ts";
-import { cyclicSubgraph, filterGraph } from "../src/graph/filter.ts";
-import {
-  findDirectDependencies,
-  findDirectDependents,
-  findLeaves,
-  findOrphans,
-} from "../src/graph/queries.ts";
-import { createFixture, removeFixture } from "./fixtures.ts";
+import { analyze } from "../../src/analyzer/analyze.ts";
+import { findCycles } from "../../src/graph/cycles.ts";
+import { cyclicSubgraph, filterGraph } from "../../src/graph/filter.ts";
+import { createFixture, removeFixture } from "../fixtures.ts";
 
-test("analyzes cycles and graph queries", async () => {
+test("analyzes cycle membership and graph filtering", async () => {
   const root = await createFixture({
     "src/a.ts": 'import "./b.js";\n',
     "src/b.ts": 'import "./c.js";\n',
@@ -24,10 +18,6 @@ test("analyzes cycles and graph queries", async () => {
 
     expect(modules).toEqual(["src/a.ts", "src/b.ts", "src/c.ts", "src/leaf.ts"]);
     expect(findCycles(result.graph)).toEqual([{ modules: ["src/a.ts", "src/b.ts", "src/c.ts"] }]);
-    expect(findDirectDependencies(result.graph, "src/a.ts")).toEqual(["src/b.ts"]);
-    expect(findDirectDependents(result.graph, "src/a.ts")).toEqual(["src/c.ts"]);
-    expect(findLeaves(result.graph)).toEqual(["src/leaf.ts"]);
-    expect(findOrphans(result.graph)).toEqual(["src/leaf.ts"]);
     expect([...cyclicSubgraph(result.graph).nodes.keys()]).toEqual([
       "src/a.ts",
       "src/b.ts",
