@@ -144,6 +144,7 @@ describe("module resolution", () => {
         specifier: "@models/user",
         kind: "import",
         to: "packages/models/src/user.ts",
+        typeOnly: true,
         status: "internal",
       });
     });
