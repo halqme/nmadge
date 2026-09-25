@@ -1,0 +1,8 @@
+{
+  "name": "package-imports-fixture",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#internal/*": "./src/internal/*.ts"
+  }
+}

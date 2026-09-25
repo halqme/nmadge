@@ -1,0 +1,5 @@
+{
+  "name": "tsconfig-paths-fixture",
+  "private": true,
+  "type": "module"
+}

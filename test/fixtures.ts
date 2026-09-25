@@ -1,6 +1,21 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { analyze } from "../src/analyzer/analyze.ts";
+import type { AnalyzeInput, AnalyzeOptions, AnalysisResult } from "../src/types.ts";
+
+export function fixturePath(name: string): string {
+  return fileURLToPath(new URL(`./fixtures/${name}/`, import.meta.url));
+}
+
+export function analyzeFixture(
+  name: string,
+  input: AnalyzeInput = ".",
+  options: Omit<AnalyzeOptions, "cwd"> = {},
+): Promise<AnalysisResult> {
+  return analyze(input, { ...options, cwd: fixturePath(name) });
+}
 
 export async function writeFixtureFiles(
   root: string,

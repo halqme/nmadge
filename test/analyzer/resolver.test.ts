@@ -1,182 +1,327 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { analyze } from "../../src/analyzer/analyze.ts";
-import type { DependencyKind } from "../../src/types.ts";
-import { createFixture, removeFixture } from "../fixtures.ts";
+import type { DependencyEdge } from "../../src/types.ts";
+import { analyzeFixture, createFixture, removeFixture } from "../fixtures.ts";
 
-test("classifies builtins, missing files, and optional type imports", async () => {
-  const root = await createFixture({
-    "main.ts": [
-      'import type { Type } from "./types.js";',
-      'import "node:fs";',
-      'import "./missing.js";',
-      'import "not-installed-package";',
-    ].join("\n"),
-    "types.ts": "export interface Type { value: string }\n",
+function expectEdge(
+  result: Awaited<ReturnType<typeof analyzeFixture>>,
+  expected: Pick<DependencyEdge, "from" | "specifier"> & Partial<DependencyEdge>,
+): void {
+  const edge = result.graph.edges.find(
+    (candidate) =>
+      candidate.from === expected.from &&
+      candidate.specifier === expected.specifier &&
+      (expected.kind === undefined || candidate.kind === expected.kind),
+  );
+  expect(edge).toMatchObject(expected);
+}
+
+describe("module resolution", () => {
+  describe("relative dependencies", () => {
+    test("resolves relative ESM dependencies", async () => {
+      const result = await analyzeFixture("basic-esm", "src/index.ts");
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "./lib/greet.js",
+        kind: "import",
+        to: "src/lib/greet.ts",
+        status: "internal",
+      });
+      expect(result.warnings).toEqual([]);
+    });
+
+    test("maps JavaScript specifiers to TypeScript sources", async () => {
+      const result = await analyzeFixture("basic-esm", "src/index.ts");
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "./lib/user.js",
+        kind: "import",
+        to: "src/lib/user.ts",
+        typeOnly: true,
+        status: "internal",
+      });
+    });
+
+    test("resolves dynamic imports to internal modules", async () => {
+      const result = await analyzeFixture("basic-esm", "src/index.ts");
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "./lib/lazy.js",
+        kind: "dynamic-import",
+        to: "src/lib/lazy.js",
+        status: "internal",
+      });
+    });
+
+    test("resolves CommonJS require dependencies from .cjs modules", async () => {
+      const result = await analyzeFixture("basic-esm", "src/legacy.cjs");
+
+      expectEdge(result, {
+        from: "src/legacy.cjs",
+        specifier: "./lib/legacy.cjs",
+        kind: "require",
+        to: "src/lib/legacy.cjs",
+        status: "internal",
+      });
+    });
+
+    test("resolves re-export dependencies", async () => {
+      const result = await analyzeFixture("basic-esm", "src/index.ts");
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "./lib/version.js",
+        kind: "re-export",
+        to: "src/lib/version.ts",
+        status: "internal",
+      });
+    });
+
+    test("resolves .mjs and .cjs specifiers to mixed TypeScript modules", async () => {
+      const result = await analyzeFixture("mixed-modules", "src/index.ts");
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "./esm.mjs",
+        kind: "import",
+        to: "src/esm.mts",
+        status: "internal",
+      });
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "./common.cjs",
+        kind: "import",
+        to: "src/common.cts",
+        status: "internal",
+      });
+    });
+
+    test("resolves extensionless directories to their index module", async () => {
+      const result = await analyzeFixture("directory-index", "src/index.ts");
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "./formatters",
+        kind: "import",
+        to: "src/formatters/index.ts",
+        status: "internal",
+      });
+    });
+
+    test("omits type-only dependencies when requested", async () => {
+      const result = await analyzeFixture("basic-esm", "src/index.ts", {
+        includeTypeImports: false,
+      });
+
+      expect(result.graph.edges.some((edge) => edge.specifier === "./lib/user.js")).toBe(false);
+      expect(result.graph.nodes.has("src/lib/user.ts")).toBe(false);
+    });
   });
 
-  try {
-    const withTypes = await analyze("main.ts", { cwd: root });
-    expect([...withTypes.graph.nodes.keys()]).toEqual(["main.ts", "types.ts"]);
-    expect(withTypes.graph.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ specifier: "node:fs", status: "external" }),
-        expect.objectContaining({ specifier: "./missing.js", status: "unresolved" }),
-        expect.objectContaining({ specifier: "not-installed-package", status: "external" }),
-        expect.objectContaining({ specifier: "./types.js", status: "internal", typeOnly: true }),
-      ]),
-    );
-    expect(withTypes.warnings).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: "unresolved-import" })]),
-    );
+  describe("TypeScript path aliases", () => {
+    test("resolves aliases declared in tsconfig paths", async () => {
+      const result = await analyzeFixture("tsconfig-paths", "src/index.ts");
 
-    const withNpm = await analyze("main.ts", {
-      cwd: root,
-      includeNpm: true,
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "@/lib/value",
+        kind: "import",
+        to: "src/lib/value.ts",
+        status: "internal",
+      });
     });
-    expect(withNpm.graph.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ specifier: "not-installed-package", status: "unresolved" }),
-      ]),
-    );
 
-    const withoutTypes = await analyze("main.ts", {
-      cwd: root,
-      includeTypeImports: false,
+    test("resolves a nested project's alias from its tsconfig", async () => {
+      const result = await analyzeFixture("tsconfig-paths", "packages/app/src/index.ts", {
+        tsconfig: "packages/app/tsconfig.json",
+      });
+
+      expectEdge(result, {
+        from: "packages/app/src/index.ts",
+        specifier: "@models/user",
+        kind: "import",
+        to: "packages/models/src/user.ts",
+        status: "internal",
+      });
     });
-    expect([...withoutTypes.graph.nodes.keys()]).toEqual(["main.ts"]);
-    expect(withoutTypes.graph.edges.some((edge) => edge.specifier === "./types.js")).toBe(false);
-  } finally {
-    await removeFixture(root);
-  }
-});
-
-test("resolves modern module forms, path aliases, conditional exports, and package imports", async () => {
-  const root = await createFixture({
-    "package.json": JSON.stringify({
-      name: "fixture-app",
-      type: "module",
-      imports: {
-        "#foo": "./src/imported.ts",
-      },
-    }),
-    "tsconfig.json": JSON.stringify({
-      compilerOptions: {
-        baseUrl: ".",
-        paths: {
-          "@/*": ["src/*"],
-        },
-      },
-    }),
-    "src/entry.ts": [
-      'import "./foo.js";',
-      'require("./common.cjs");',
-      'import("./dynamic.js");',
-      'export { foo } from "./reexport.js";',
-      'import type { Foo } from "./types.js";',
-      'import { aliased } from "@/aliased";',
-      'import "#foo";',
-      'import "fixture-package";',
-      'require("fixture-package");',
-      'require.resolve("fixture-package");',
-    ].join("\n"),
-    "src/foo.ts": "export const foo = true;\n",
-    "src/common.cjs": "module.exports = {};\n",
-    "src/dynamic.js": "export const dynamic = true;\n",
-    "src/reexport.js": "export const foo = true;\n",
-    "src/types.ts": "export interface Foo { value: string }\n",
-    "src/aliased.ts": "export const aliased = true;\n",
-    "src/imported.ts": "export const imported = true;\n",
-    "node_modules/fixture-package/package.json": JSON.stringify({
-      name: "fixture-package",
-      type: "module",
-      exports: {
-        ".": {
-          import: "./esm.js",
-          require: "./cjs.cjs",
-        },
-      },
-    }),
-    "node_modules/fixture-package/esm.js": 'export const mode = "import";\n',
-    "node_modules/fixture-package/cjs.cjs": 'module.exports = { mode: "require" };\n',
   });
 
-  try {
-    const result = await analyze("src/entry.ts", {
-      cwd: root,
-      includeNpm: true,
-    });
-    const edgeFor = (specifier: string, kind: DependencyKind) =>
-      result.graph.edges.find(
-        (edge) =>
-          edge.from === "src/entry.ts" && edge.specifier === specifier && edge.kind === kind,
-      );
+  describe("package resolution", () => {
+    test("resolves package imports from the package imports map", async () => {
+      const result = await analyzeFixture("package-imports", "src/index.ts");
 
-    expect(edgeFor("./foo.js", "import")).toMatchObject({
-      to: "src/foo.ts",
-      status: "internal",
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "#internal/value",
+        kind: "import",
+        to: "src/internal/value.ts",
+        status: "internal",
+      });
     });
-    expect(edgeFor("./common.cjs", "require")).toMatchObject({
-      to: "src/common.cjs",
-      status: "internal",
-    });
-    expect(edgeFor("./dynamic.js", "dynamic-import")).toMatchObject({
-      to: "src/dynamic.js",
-      status: "internal",
-    });
-    expect(edgeFor("./reexport.js", "re-export")).toMatchObject({
-      to: "src/reexport.js",
-      status: "internal",
-    });
-    expect(edgeFor("./types.js", "import")).toMatchObject({
-      to: "src/types.ts",
-      status: "internal",
-      typeOnly: true,
-    });
-    expect(edgeFor("@/aliased", "import")).toMatchObject({
-      to: "src/aliased.ts",
-      status: "internal",
-    });
-    expect(edgeFor("#foo", "import")).toMatchObject({
-      to: "src/imported.ts",
-      status: "internal",
-    });
-    expect(edgeFor("fixture-package", "import")).toMatchObject({
-      to: "node_modules/fixture-package/esm.js",
-      status: "internal",
-    });
-    expect(edgeFor("fixture-package", "require")).toMatchObject({
-      to: "node_modules/fixture-package/cjs.cjs",
-      status: "internal",
-    });
-    expect(edgeFor("fixture-package", "require-resolve")).toMatchObject({
-      to: "node_modules/fixture-package/cjs.cjs",
-      status: "internal",
-    });
-    expect(result.warnings).toEqual([]);
-  } finally {
-    await removeFixture(root);
-  }
-});
 
-test("resolves JSON dependencies without unsupported-file warnings", async () => {
-  const root = await createFixture({
-    "src/entry.ts": ['require("../package.json");', 'require("../metadata");'].join("\n"),
-    "package.json": JSON.stringify({ name: "fixture" }),
-    "metadata.json": JSON.stringify({ version: 1 }),
+    test("selects the import condition from package exports", async () => {
+      const result = await analyzeFixture("package-exports", "src/index.ts", {
+        includeNpm: true,
+      });
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "fixture-package",
+        kind: "import",
+        to: "node_modules/fixture-package/import.js",
+        status: "internal",
+      });
+    });
+
+    test("selects the require condition from package exports", async () => {
+      const result = await analyzeFixture("package-exports", "src/legacy.cjs", {
+        includeNpm: true,
+      });
+
+      expectEdge(result, {
+        from: "src/legacy.cjs",
+        specifier: "fixture-package",
+        kind: "require",
+        to: "node_modules/fixture-package/require.cjs",
+        status: "internal",
+      });
+    });
+
+    test("resolves exported package subpaths for import", async () => {
+      const result = await analyzeFixture("package-exports", "src/index.ts", {
+        includeNpm: true,
+      });
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "fixture-package/feature",
+        kind: "import",
+        to: "node_modules/fixture-package/feature/import.js",
+        status: "internal",
+      });
+    });
+
+    test("resolves exported package subpaths for require.resolve", async () => {
+      const result = await analyzeFixture("package-exports", "src/legacy.cjs", {
+        includeNpm: true,
+      });
+
+      expectEdge(result, {
+        from: "src/legacy.cjs",
+        specifier: "fixture-package/feature",
+        kind: "require-resolve",
+        to: "node_modules/fixture-package/feature/require.cjs",
+        status: "internal",
+      });
+    });
+
+    test("resolves a package's self-reference through its exports", async () => {
+      const result = await analyzeFixture("package-self-reference", "src/index.ts");
+
+      expectEdge(result, {
+        from: "src/index.ts",
+        specifier: "self-reference-fixture/feature",
+        kind: "import",
+        to: "src/feature.ts",
+        status: "internal",
+      });
+    });
+
+    test("resolves workspace dependencies across package boundaries", async () => {
+      const result = await analyzeFixture("workspace", "packages/app/src/index.ts", {
+        includeNpm: true,
+      });
+
+      expectEdge(result, {
+        from: "packages/app/src/index.ts",
+        specifier: "@oxdg/shared",
+        kind: "import",
+        to: "packages/shared/src/index.ts",
+        status: "internal",
+      });
+      expect(result.graph.nodes.has("packages/shared/src/index.ts")).toBe(true);
+    });
   });
 
-  try {
-    const result = await analyze("src/entry.ts", { cwd: root });
+  describe("external and unresolved dependencies", () => {
+    test("classifies builtins and bare packages as external by default", async () => {
+      const root = await createFixture({
+        "src/index.ts": 'import "node:fs";\nimport "not-installed-package";\n',
+      });
 
-    expect([...result.graph.nodes.keys()]).toEqual(["src/entry.ts"]);
-    expect(result.graph.edges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ specifier: "../package.json", status: "external" }),
-        expect.objectContaining({ specifier: "../metadata", status: "external" }),
-      ]),
-    );
-    expect(result.warnings).toEqual([]);
-  } finally {
-    await removeFixture(root);
-  }
+      try {
+        const result = await analyze("src/index.ts", { cwd: root });
+
+        expect(result.graph.edges).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ specifier: "node:fs", status: "external" }),
+            expect.objectContaining({ specifier: "not-installed-package", status: "external" }),
+          ]),
+        );
+      } finally {
+        await removeFixture(root);
+      }
+    });
+
+    test("reports missing relative files as unresolved dependencies", async () => {
+      const root = await createFixture({
+        "src/index.ts": 'import "./missing.js";\n',
+      });
+
+      try {
+        const result = await analyze("src/index.ts", { cwd: root });
+
+        expect(result.graph.edges).toContainEqual(
+          expect.objectContaining({ specifier: "./missing.js", status: "unresolved" }),
+        );
+        expect(result.warnings).toEqual(
+          expect.arrayContaining([expect.objectContaining({ code: "unresolved-import" })]),
+        );
+      } finally {
+        await removeFixture(root);
+      }
+    });
+
+    test("reports missing bare packages as unresolved when npm analysis is enabled", async () => {
+      const root = await createFixture({
+        "src/index.ts": 'import "not-installed-package";\n',
+      });
+
+      try {
+        const result = await analyze("src/index.ts", { cwd: root, includeNpm: true });
+
+        expect(result.graph.edges).toContainEqual(
+          expect.objectContaining({ specifier: "not-installed-package", status: "unresolved" }),
+        );
+      } finally {
+        await removeFixture(root);
+      }
+    });
+
+    test("treats JSON dependencies as external without unsupported-file warnings", async () => {
+      const root = await createFixture({
+        "src/index.ts": ['require("../package.json");', 'require("../metadata");'].join("\n"),
+        "package.json": JSON.stringify({ name: "fixture" }),
+        "metadata.json": JSON.stringify({ version: 1 }),
+      });
+
+      try {
+        const result = await analyze("src/index.ts", { cwd: root });
+
+        expect(result.graph.nodes.has("src/index.ts")).toBe(true);
+        expect(result.graph.edges).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ specifier: "../package.json", status: "external" }),
+            expect.objectContaining({ specifier: "../metadata", status: "external" }),
+          ]),
+        );
+        expect(result.warnings).toEqual([]);
+      } finally {
+        await removeFixture(root);
+      }
+    });
+  });
 });

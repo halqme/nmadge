@@ -1,0 +1,5 @@
+{
+  "name": "package-exports-app",
+  "private": true,
+  "type": "module"
+}

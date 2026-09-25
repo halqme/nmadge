@@ -1,42 +1,81 @@
 import { mkdtemp, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { analyze } from "../../src/analyzer/analyze.ts";
 import { createFixture, removeFixture, writeFixtureFiles } from "../fixtures.ts";
 
-test("excludes .git and node_modules, deduplicates inputs, and does not follow directory symlinks", async () => {
-  const outside = await mkdtemp(join(tmpdir(), "oxdg-linked-"));
-  const root = await createFixture({
-    "src/entry.ts": "export const entry = true;\n",
-    "regular.ts": "export const regular = true;\n",
-    ".git/ignored.ts": "export const ignored = true;\n",
-    "node_modules/pkg/ignored.ts": "export const ignored = true;\n",
+describe("source discovery", () => {
+  test("keeps .git excluded when node_modules are included", async () => {
+    const root = await createFixture({
+      "src/entry.ts": "export const entry = true;\n",
+      ".git/ignored.ts": "export const ignored = true;\n",
+      "node_modules/pkg/dependency.ts": "export const dependency = true;\n",
+    });
+
+    try {
+      const result = await analyze(".", { cwd: root, includeNpm: true });
+
+      expect([...result.graph.nodes.keys()]).toEqual([
+        "node_modules/pkg/dependency.ts",
+        "src/entry.ts",
+      ]);
+    } finally {
+      await removeFixture(root);
+    }
   });
-  await writeFixtureFiles(outside, {
-    "outside.ts": "export const outside = true;\n",
+
+  test("skips node_modules by default and includes it when requested", async () => {
+    const root = await createFixture({
+      "src/entry.ts": "export const entry = true;\n",
+      "node_modules/pkg/index.ts": "export const dependency = true;\n",
+    });
+
+    try {
+      const defaults = await analyze(".", { cwd: root });
+      expect([...defaults.graph.nodes.keys()]).toEqual(["src/entry.ts"]);
+
+      const withNpm = await analyze(".", { cwd: root, includeNpm: true });
+      expect([...withNpm.graph.nodes.keys()]).toEqual([
+        "node_modules/pkg/index.ts",
+        "src/entry.ts",
+      ]);
+    } finally {
+      await removeFixture(root);
+    }
   });
-  await symlink(outside, join(root, "linked-directory"));
 
-  try {
-    const withoutNpm = await analyze(".", { cwd: root });
-    expect([...withoutNpm.graph.nodes.keys()]).toEqual(["regular.ts", "src/entry.ts"]);
+  test("deduplicates overlapping input paths", async () => {
+    const root = await createFixture({
+      "src/entry.ts": "export const entry = true;\n",
+    });
 
-    const withNpm = await analyze(".", { cwd: root, includeNpm: true });
-    expect([...withNpm.graph.nodes.keys()]).toEqual([
-      "node_modules/pkg/ignored.ts",
-      "regular.ts",
-      "src/entry.ts",
-    ]);
-    expect([...withNpm.graph.nodes.keys()].some((id) => id.startsWith(".git/"))).toBe(false);
-    expect([...withNpm.graph.nodes.keys()].some((id) => id.startsWith("linked-directory/"))).toBe(
-      false,
-    );
+    try {
+      const result = await analyze(["src", "src/entry.ts"], { cwd: root });
 
-    const duplicatedInputs = await analyze(["src", "src/entry.ts"], { cwd: root });
-    expect([...duplicatedInputs.graph.nodes.keys()]).toEqual(["src/entry.ts"]);
-  } finally {
-    await removeFixture(root);
-    await removeFixture(outside);
-  }
+      expect([...result.graph.nodes.keys()]).toEqual(["src/entry.ts"]);
+    } finally {
+      await removeFixture(root);
+    }
+  });
+
+  test("does not follow directory symlinks", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "oxdg-linked-"));
+    const root = await createFixture({
+      "src/entry.ts": "export const entry = true;\n",
+    });
+    await writeFixtureFiles(outside, {
+      "outside.ts": "export const outside = true;\n",
+    });
+    await symlink(outside, join(root, "linked-directory"));
+
+    try {
+      const result = await analyze(".", { cwd: root });
+
+      expect([...result.graph.nodes.keys()]).toEqual(["src/entry.ts"]);
+    } finally {
+      await removeFixture(root);
+      await removeFixture(outside);
+    }
+  });
 });
