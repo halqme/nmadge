@@ -33,7 +33,10 @@ function initializeCorpus(directory: string, paths: string[]): string {
 async function writeOxdgConsumer(workspace: string, key: string, version: string) {
   const packageDirectory = join(workspace, "consumers", key, "node_modules", "oxdg");
   await mkdir(join(packageDirectory, "dist", "cli"), { recursive: true });
-  await writeFile(join(packageDirectory, "package.json"), JSON.stringify({ name: "oxdg", version }));
+  await writeFile(
+    join(packageDirectory, "package.json"),
+    JSON.stringify({ name: "oxdg", version }),
+  );
   await writeFile(join(packageDirectory, "dist", "cli", "main.js"), "#!/usr/bin/env node\n");
 }
 
