@@ -124,43 +124,43 @@ function extractSourceImports(
   if (needsAstWalk) {
     walk(result.program, {
       enter(node) {
-      if (node.type === "ImportExpression") {
-        const importSource = node.source;
-        if (importSource.type === "Literal" && typeof importSource.value === "string") {
-          addReference(references, node.start, importSource.value, "dynamic-import", false);
-        } else {
-          addDynamicWarning(warnings, filePath, "dynamic import");
+        if (node.type === "ImportExpression") {
+          const importSource = node.source;
+          if (importSource.type === "Literal" && typeof importSource.value === "string") {
+            addReference(references, node.start, importSource.value, "dynamic-import", false);
+          } else {
+            addDynamicWarning(warnings, filePath, "dynamic import");
+          }
+          return;
         }
-        return;
-      }
 
-      if (node.type !== "CallExpression") {
-        return;
-      }
+        if (node.type !== "CallExpression") {
+          return;
+        }
 
-      if (node.callee.type === "Identifier" && node.callee.name === "require") {
-        addCallReference(references, warnings, filePath, node.start, "require", node.arguments);
-        return;
-      }
+        if (node.callee.type === "Identifier" && node.callee.name === "require") {
+          addCallReference(references, warnings, filePath, node.start, "require", node.arguments);
+          return;
+        }
 
-      if (
-        node.callee.type === "MemberExpression" &&
-        !node.callee.computed &&
-        node.callee.object.type === "Identifier" &&
-        node.callee.object.name === "require" &&
-        node.callee.property.type === "Identifier" &&
-        node.callee.property.name === "resolve"
-      ) {
-        addCallReference(
-          references,
-          warnings,
-          filePath,
-          node.start,
-          "require-resolve",
-          node.arguments,
-        );
-      }
-    },
+        if (
+          node.callee.type === "MemberExpression" &&
+          !node.callee.computed &&
+          node.callee.object.type === "Identifier" &&
+          node.callee.object.name === "require" &&
+          node.callee.property.type === "Identifier" &&
+          node.callee.property.name === "resolve"
+        ) {
+          addCallReference(
+            references,
+            warnings,
+            filePath,
+            node.start,
+            "require-resolve",
+            node.arguments,
+          );
+        }
+      },
     });
   }
 
