@@ -83,14 +83,14 @@ jobs:
             echo "WEBPACK_DIR=$webpack_dir"
           } >> "$GITHUB_ENV"
 
-      - name: Check package and report footprint
+      - name: Check main package and report footprint
         run: node scripts/package-footprint.mjs --output "$BENCHMARK_WORKSPACE/packs/oxdg" --report benchmark-package-footprint.json --summary "$GITHUB_STEP_SUMMARY"
 
-      - name: Install comparison tools and save dependency locks
-        run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --locks benchmark-package-locks --package-footprint benchmark-package-footprint.json
+      - name: Install released, main, and comparison packages
+        run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --locks benchmark-package-locks --package-footprint benchmark-package-footprint.json --release-footprint benchmark-release-footprint.json
 
       - name: Run benchmark workloads and record metadata
-        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --webpack-dir "$WEBPACK_DIR" --workspace "$BENCHMARK_WORKSPACE" --package-footprint benchmark-package-footprint.json --output .
+        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --webpack-dir "$WEBPACK_DIR" --workspace "$BENCHMARK_WORKSPACE" --main-package-footprint benchmark-package-footprint.json --release-package-footprint benchmark-release-footprint.json --output .
 
       - name: Generate benchmark report and Actions Summary
         run: node scripts/benchmark-report.mjs --hono-directory benchmark-hono-directory.json --hono-entrypoint benchmark-hono-entrypoint.json --webpack-directory benchmark-webpack-directory.json --webpack-entrypoint benchmark-webpack-entrypoint.json --metadata benchmark-metadata.json --output benchmark-report --summary "$GITHUB_STEP_SUMMARY"
@@ -108,6 +108,7 @@ jobs:
             benchmark-metadata.json
             benchmark-commands.json
             benchmark-package-footprint.json
+            benchmark-release-footprint.json
             benchmark-package-locks/
             benchmark-report/
             bun.lock
