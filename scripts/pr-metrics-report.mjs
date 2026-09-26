@@ -59,16 +59,23 @@ const currentFootprint = JSON.parse(
   await readFile(resolve(requiredOption("--current-footprint")), "utf8"),
 );
 const build = hyperfinePair(JSON.parse(await readFile(resolve(requiredOption("--build")), "utf8")));
-const directoryAnalysis = hyperfinePair(
-  JSON.parse(await readFile(resolve(requiredOption("--directory-analysis")), "utf8")),
+const honoDirectory = hyperfinePair(
+  JSON.parse(await readFile(resolve(requiredOption("--hono-directory")), "utf8")),
 );
-const entrypointAnalysis = hyperfinePair(
-  JSON.parse(await readFile(resolve(requiredOption("--entrypoint-analysis")), "utf8")),
+const honoEntrypoint = hyperfinePair(
+  JSON.parse(await readFile(resolve(requiredOption("--hono-entrypoint")), "utf8")),
+);
+const webpackDirectory = hyperfinePair(
+  JSON.parse(await readFile(resolve(requiredOption("--webpack-directory")), "utf8")),
+);
+const webpackEntrypoint = hyperfinePair(
+  JSON.parse(await readFile(resolve(requiredOption("--webpack-entrypoint")), "utf8")),
 );
 const output = resolve(requiredOption("--output"));
 const baseLabel = optionValue("--base-label") ?? "main";
 const currentLabel = optionValue("--current-label") ?? "PR";
-const corpusCommit = optionValue("--corpus-commit") ?? "unknown";
+const honoCommit = optionValue("--hono-commit") ?? "unknown";
+const webpackCommit = optionValue("--webpack-commit") ?? "unknown";
 
 const packageRows = [
   [
@@ -99,16 +106,28 @@ const performanceRows = [
     formatDelta(build.base.mean, build.current.mean),
   ],
   [
-    "Hono directory-wide",
-    formatTiming(directoryAnalysis.base),
-    formatTiming(directoryAnalysis.current),
-    formatDelta(directoryAnalysis.base.mean, directoryAnalysis.current.mean),
+    "Hono · directory-wide",
+    formatTiming(honoDirectory.base),
+    formatTiming(honoDirectory.current),
+    formatDelta(honoDirectory.base.mean, honoDirectory.current.mean),
   ],
   [
-    "Hono entrypoint",
-    formatTiming(entrypointAnalysis.base),
-    formatTiming(entrypointAnalysis.current),
-    formatDelta(entrypointAnalysis.base.mean, entrypointAnalysis.current.mean),
+    "Hono · entrypoint",
+    formatTiming(honoEntrypoint.base),
+    formatTiming(honoEntrypoint.current),
+    formatDelta(honoEntrypoint.base.mean, honoEntrypoint.current.mean),
+  ],
+  [
+    "Webpack · directory-wide",
+    formatTiming(webpackDirectory.base),
+    formatTiming(webpackDirectory.current),
+    formatDelta(webpackDirectory.base.mean, webpackDirectory.current.mean),
+  ],
+  [
+    "Webpack · entrypoint",
+    formatTiming(webpackEntrypoint.base),
+    formatTiming(webpackEntrypoint.current),
+    formatDelta(webpackEntrypoint.base.mean, webpackEntrypoint.current.mean),
   ],
 ];
 
@@ -136,7 +155,8 @@ const body = [
   "<summary>Measurement details</summary>",
   "",
   `- Build: 2 warmups, 5 measured runs per revision.`,
-  `- Processing: fixed Hono corpus at \`${corpusCommit}\`; directory-wide and entrypoint workloads each use 5 warmups and 15 measured runs per revision.`,
+  `- Hono (ESM / TypeScript): \`${honoCommit}\`; directory-wide and entrypoint workloads each use 5 warmups and 15 measured runs per revision.`,
+  `- Webpack (CommonJS / JavaScript): \`${webpackCommit}\`; directory-wide and entrypoint workloads each use 5 warmups and 15 measured runs per revision.`,
   "- Timing cells show mean ± standard deviation.",
   "- Package footprint uses the same packed-package validation as release checks.",
   "- These metrics do not gate the PR.",
