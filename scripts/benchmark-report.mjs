@@ -589,13 +589,13 @@ footer {
 
   ${workloadTable(
     "Directory-wide analysis",
-    `${workloads.directory.files ?? "All"} source files under ${workloads.directory.input}, using the same extension set for each tool.`,
+    `${workloads.directory.files ?? "All"} source files under ${workloads.directory.input}; extensions: ${workloads.directory.extensions.join(", ")}.`,
     workloads.directory,
   )}
 
   ${workloadTable(
     "Entrypoint analysis",
-    `Single entrypoint at ${workloads.entrypoint.input}, using the same extension set for each tool.`,
+    `Single entrypoint at ${workloads.entrypoint.input}; extensions: ${workloads.entrypoint.extensions.join(", ")}.`,
     workloads.entrypoint,
   )}
 
