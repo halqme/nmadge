@@ -1,6 +1,6 @@
 import { execFile as execFileCallback, execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { delimiter, extname, join, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -8,8 +8,8 @@ const execFile = promisify(execFileCallback);
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const extensions = ["js", "jsx", "ts", "tsx", "mjs", "cjs", "mts", "cts"];
 const extensionSet = new Set(extensions.map((extension) => `.${extension}`));
-const warmup = 8;
-const runs = 20;
+const defaultWarmup = 8;
+const defaultRuns = 20;
 
 function optionValue(name) {
   const index = process.argv.indexOf(name);
@@ -20,6 +20,16 @@ function requiredOption(name) {
   const value = optionValue(name);
   if (!value) throw new Error(`missing required option: ${name}`);
   return value;
+}
+
+function positiveIntegerOption(name, fallback) {
+  const value = optionValue(name);
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
 }
 
 function readCommand(command, args = []) {
@@ -74,22 +84,24 @@ function commandsFor(directoryInput, entrypointInput) {
   const extensionList = extensions.join(",");
   return {
     directory: {
-      release: `node "$OXDG_RELEASE_CLI" --extensions ${extensionList} ${directoryInput}`,
-      main: `node "$OXDG_MAIN_CLI" --extensions ${extensionList} ${directoryInput}`,
-      dpdm: `dpdm '${directoryInput}/**/*.{${extensionList}}'`,
-      madge: `madge --extensions ${extensionList} ${directoryInput}`,
+      release: `"$OXDG_RELEASE_CLI" --extensions ${extensionList} ${directoryInput}`,
+      main: `"$OXDG_MAIN_CLI" --extensions ${extensionList} ${directoryInput}`,
+      dpdm: `"$DPDM_CLI" '${directoryInput}/**/*.{${extensionList}}'`,
+      madge: `"$MADGE_CLI" --extensions ${extensionList} ${directoryInput}`,
     },
     entrypoint: {
-      release: `node "$OXDG_RELEASE_CLI" --extensions ${extensionList} ${entrypointInput}`,
-      main: `node "$OXDG_MAIN_CLI" --extensions ${extensionList} ${entrypointInput}`,
-      dpdm: `dpdm --extensions ${extensionList} ${entrypointInput}`,
-      madge: `madge --extensions ${extensionList} ${entrypointInput}`,
+      release: `"$OXDG_RELEASE_CLI" --extensions ${extensionList} ${entrypointInput}`,
+      main: `"$OXDG_MAIN_CLI" --extensions ${extensionList} ${entrypointInput}`,
+      dpdm: `"$DPDM_CLI" --extensions ${extensionList} ${entrypointInput}`,
+      madge: `"$MADGE_CLI" --extensions ${extensionList} ${entrypointInput}`,
     },
   };
 }
 
 const workspace = resolve(requiredOption("--workspace"));
 const outputDirectory = resolve(optionValue("--output") ?? ".");
+const warmup = positiveIntegerOption("--warmup", defaultWarmup);
+const runs = positiveIntegerOption("--runs", defaultRuns);
 const mainPackageFootprint = JSON.parse(
   await readFile(resolve(requiredOption("--main-package-footprint")), "utf8"),
 );
@@ -120,37 +132,24 @@ const corpusDefinitions = [
   },
 ];
 
-const toolBinDirectories = ["madge", "dpdm"].map((tool) =>
-  join(workspace, "consumers", tool, "node_modules", ".bin"),
-);
-const releaseCli = join(
-  workspace,
-  "consumers",
-  "release",
-  "node_modules",
-  "oxdg",
-  "dist",
-  "cli",
-  "main.js",
-);
-const mainCli = join(
-  workspace,
-  "consumers",
-  "main",
-  "node_modules",
-  "oxdg",
-  "dist",
-  "cli",
-  "main.js",
-);
+const releaseCli = join(workspace, "consumers", "release", "node_modules", ".bin", "oxdg");
+const mainCli = join(workspace, "consumers", "main", "node_modules", ".bin", "oxdg");
+const dpdmCli = join(workspace, "consumers", "dpdm", "node_modules", ".bin", "dpdm");
+const madgeCli = join(workspace, "consumers", "madge", "node_modules", ".bin", "madge");
 const env = {
   ...process.env,
   OXDG_RELEASE_CLI: releaseCli,
   OXDG_MAIN_CLI: mainCli,
-  PATH: [...toolBinDirectories, process.env.PATH ?? ""].join(delimiter),
+  DPDM_CLI: dpdmCli,
+  MADGE_CLI: madgeCli,
 };
 
-await Promise.all([readFile(releaseCli, "utf8"), readFile(mainCli, "utf8")]);
+await Promise.all([
+  readFile(releaseCli, "utf8"),
+  readFile(mainCli, "utf8"),
+  readFile(dpdmCli, "utf8"),
+  readFile(madgeCli, "utf8"),
+]);
 await mkdir(outputDirectory, { recursive: true });
 const corpora = {};
 const commandArtifact = {};
