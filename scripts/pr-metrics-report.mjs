@@ -59,8 +59,11 @@ const currentFootprint = JSON.parse(
   await readFile(resolve(requiredOption("--current-footprint")), "utf8"),
 );
 const build = hyperfinePair(JSON.parse(await readFile(resolve(requiredOption("--build")), "utf8")));
-const analysis = hyperfinePair(
-  JSON.parse(await readFile(resolve(requiredOption("--analysis")), "utf8")),
+const directoryAnalysis = hyperfinePair(
+  JSON.parse(await readFile(resolve(requiredOption("--directory-analysis")), "utf8")),
+);
+const entrypointAnalysis = hyperfinePair(
+  JSON.parse(await readFile(resolve(requiredOption("--entrypoint-analysis")), "utf8")),
 );
 const output = resolve(requiredOption("--output"));
 const baseLabel = optionValue("--base-label") ?? "main";
@@ -96,10 +99,16 @@ const performanceRows = [
     formatDelta(build.base.mean, build.current.mean),
   ],
   [
-    "Hono directory analysis",
-    formatTiming(analysis.base),
-    formatTiming(analysis.current),
-    formatDelta(analysis.base.mean, analysis.current.mean),
+    "Hono directory-wide",
+    formatTiming(directoryAnalysis.base),
+    formatTiming(directoryAnalysis.current),
+    formatDelta(directoryAnalysis.base.mean, directoryAnalysis.current.mean),
+  ],
+  [
+    "Hono entrypoint",
+    formatTiming(entrypointAnalysis.base),
+    formatTiming(entrypointAnalysis.current),
+    formatDelta(entrypointAnalysis.base.mean, entrypointAnalysis.current.mean),
   ],
 ];
 
@@ -127,7 +136,7 @@ const body = [
   "<summary>Measurement details</summary>",
   "",
   `- Build: 2 warmups, 5 measured runs per revision.`,
-  `- Processing: fixed Hono corpus at \`${corpusCommit}\`, 5 warmups, 15 measured runs per revision.`,
+  `- Processing: fixed Hono corpus at \`${corpusCommit}\`; directory-wide and entrypoint workloads each use 5 warmups and 15 measured runs per revision.`,
   "- Timing cells show mean ± standard deviation.",
   "- Package footprint uses the same packed-package validation as release checks.",
   "- These metrics do not gate the PR.",

@@ -101,9 +101,16 @@ jobs:
             --warmup 5 \
             --runs 15 \
             --shell bash \
-            --export-json "$RUNNER_TEMP/analysis.json" \
+            --export-json "$RUNNER_TEMP/analysis-directory.json" \
             'node "$BASE/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src' \
             'node "$CURRENT/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src'
+          hyperfine \
+            --warmup 5 \
+            --runs 15 \
+            --shell bash \
+            --export-json "$RUNNER_TEMP/analysis-entrypoint.json" \
+            'node "$BASE/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src/index.ts' \
+            'node "$CURRENT/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src/index.ts'
 
       - name: Generate comparison
         shell: bash
@@ -121,7 +128,8 @@ jobs:
             --base-footprint "$RUNNER_TEMP/base-footprint.json" \
             --current-footprint "$RUNNER_TEMP/current-footprint.json" \
             --build "$RUNNER_TEMP/build.json" \
-            --analysis "$RUNNER_TEMP/analysis.json" \
+            --directory-analysis "$RUNNER_TEMP/analysis-directory.json" \
+            --entrypoint-analysis "$RUNNER_TEMP/analysis-entrypoint.json" \
             --base-label "main ([\`${base_sha:0:7}\`](${base_commit_url}/${base_sha}))" \
             --current-label "PR ([\`${head_sha:0:7}\`](${head_commit_url}/${head_sha}))" \
             --corpus-commit "$HONO_COMMIT" \

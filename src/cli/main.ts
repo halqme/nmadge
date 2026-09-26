@@ -9,7 +9,6 @@ import { findDirectDependents, findLeaves, findOrphans } from "../graph/queries.
 import { renderD2 } from "../render/d2.ts";
 import { renderJson } from "../render/json.ts";
 import { renderMermaid } from "../render/mermaid.ts";
-import { renderSvg } from "../render/svg.ts";
 import { renderCycles, renderText } from "../render/text.ts";
 import type { AnalyzeOptions, ModuleGraph, ModuleId } from "../types.ts";
 import { CliUsageError, parseCliOptions } from "./options.ts";
@@ -126,10 +125,11 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       case "d2":
         output = renderD2(graph);
         break;
-      case "svg":
+      case "svg": {
         if (cliOptions.imagePath === undefined) {
           throw new Error("An SVG output path is required");
         }
+        const { renderSvg } = await import("../render/svg.ts");
         await writeFile(
           cliOptions.imagePath,
           renderSvg(
@@ -140,6 +140,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
         );
         setExitCode(cliOptions.failOnCircular, cycles.length);
         return;
+      }
       case "text":
         output = renderText(graph);
         break;
