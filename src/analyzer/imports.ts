@@ -168,11 +168,10 @@ function scanDependencyNode(
   }
 }
 
-function canUseLazyParser(source: string): boolean {
+function canUseLazyParser(): boolean {
   return (
     OxcParser.rawTransferSupported() &&
-    typeof experimentalParser.experimentalGetLazyVisitor === "function" &&
-    (source.includes("require") || source.includes("\\u"))
+    typeof experimentalParser.experimentalGetLazyVisitor === "function"
   );
 }
 
@@ -187,7 +186,7 @@ function parseSource(
     ...(language ? { lang: language } : {}),
   };
 
-  if (!canUseLazyParser(source)) {
+  if (!canUseLazyParser()) {
     return { result: OxcParser.parseSync(filePath, source, options), lazy: false };
   }
 
