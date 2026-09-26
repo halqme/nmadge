@@ -2,9 +2,6 @@ name: Benchmark
 
 on:
   workflow_dispatch:
-  release:
-    types:
-      - published
   schedule:
     - cron: "0 4 * * 1"
 
@@ -31,11 +28,10 @@ jobs:
       HYPERFINE_VERSION: 1.19.0
       RUNNER_LABEL: ubuntu-latest
     steps:
-      - name: Check out benchmarked source
+      - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event.release.tag_name || github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -84,7 +80,7 @@ jobs:
       - name: Run both benchmark workloads and record metadata
         run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --workspace "$BENCHMARK_WORKSPACE" --package-footprint benchmark-package-footprint.json --output .
 
-      - name: Generate normalized report, badges, and Actions Summary
+      - name: Generate benchmark report and Actions Summary
         run: node scripts/benchmark-report.mjs --directory benchmark-directory.json --entrypoint benchmark-entrypoint.json --metadata benchmark-metadata.json --output benchmark-report --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload benchmark results
@@ -102,7 +98,7 @@ jobs:
             benchmark-report/
             bun.lock
 
-  publish-benchmark:
+  publish-report:
     needs: benchmark
     runs-on: ubuntu-latest
     timeout-minutes: 10

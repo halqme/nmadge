@@ -1,8 +1,7 @@
 # oxdg
 
-[![CI](https://github.com/halqme/oxdg/actions/workflows/ci.yml/badge.svg)](https://github.com/halqme/oxdg/actions/workflows/ci.yml)
-[![Benchmark](https://github.com/halqme/oxdg/actions/workflows/benchmark.yml/badge.svg)](https://github.com/halqme/oxdg/actions/workflows/benchmark.yml)
 [![npm version](https://img.shields.io/npm/v/oxdg)](https://www.npmjs.com/package/oxdg)
+[![CI](https://github.com/halqme/oxdg/actions/workflows/ci.yml/badge.svg)](https://github.com/halqme/oxdg/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/oxdg)](LICENSE)
 
 A fast, lightweight dependency graph CLI for modern JavaScript and TypeScript, built on [Oxc](https://oxc.rs/).
@@ -16,7 +15,9 @@ No initialization. No required config file. No system Graphviz dependency.
 Try it:
 
 ```bash
-npx oxdg src/index.ts --image graph.svg
+npx oxdg src
+npx oxdg src --circular
+npx oxdg src --image graph.svg
 ```
 
 ![npx oxdg src/index.ts --image graph.svg](https://raw.githubusercontent.com/halqme/oxdg/refs/heads/main/graph.svg)
@@ -36,21 +37,11 @@ npx oxdg src/index.ts --image graph.svg
 
 ## Performance
 
-Runtime performance is measured by the dedicated [Benchmark workflow](https://github.com/halqme/oxdg/actions/workflows/benchmark.yml) on a fixed Hono corpus. It runs weekly, on published releases, or by manual dispatch; every successful run updates the GitHub Pages report and performance badges below.
+Performance is measured independently from releases by a dedicated benchmark workflow that runs weekly or on demand. It compares oxdg against pinned versions of other dependency-graph tools on a fixed [Hono](https://github.com/honojs/hono) revision.
 
-To publish the report, enable GitHub Pages for the repository with **GitHub Actions** selected as the build and deployment source in Settings → Pages.
+The full report records runtime statistics, exact commands, package footprint, dependency locks, and runner metadata.
 
-**Corpus:** [honojs/hono](https://github.com/honojs/hono) at [`098e11912ab244c5c33931de007f04dc8e3c2929`](https://github.com/honojs/hono/commit/098e11912ab244c5c33931de007f04dc8e3c2929) · **Runner:** GitHub-hosted `ubuntu-latest` (image and CPU recorded per run) · **hyperfine:** 8 warmups, 20 runs.
-
-[![Hono benchmark runtime](https://img.shields.io/endpoint?url=https%3A%2F%2Fhalqme.github.io%2Foxdg%2Fbadges%2Fruntime.json)](https://halqme.github.io/oxdg/)
-[![Hono vs Madge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhalqme.github.io%2Foxdg%2Fbadges%2Fvs-madge.json)](https://halqme.github.io/oxdg/)
-
-| Workload       | Input                              | Representative result                                                                                                                                                                                                                                                 |
-| -------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Directory-wide | Hono `src`; all 8 JS/TS extensions | Latest mean and relative performance are shown in the badges and [full report](https://halqme.github.io/oxdg/). The report includes source file count and exact commands.                                                                                             |
-| Entrypoint     | Hono `src/index.ts`                | [![Hono entrypoint](https://img.shields.io/endpoint?url=https%3A%2F%2Fhalqme.github.io%2Foxdg%2Fbadges%2Fentrypoint.json)](https://halqme.github.io/oxdg/) · Relative performance and all timing statistics are in the [full report](https://halqme.github.io/oxdg/). |
-
-The entrypoint workload uses the same `src/index.ts` input and the same eight JS/TS extensions for each CLI. The report records mean, standard deviation, median, minimum, maximum, exact tool commands, corpus commit, and runner/runtime metadata. Results represent this fixed corpus and runner, not every project or machine.
+[View the latest benchmark report →](https://halqme.github.io/oxdg/)
 
 ## Package footprint
 

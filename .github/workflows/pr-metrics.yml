@@ -1,0 +1,166 @@
+name: PR Metrics
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-metrics-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  metrics:
+    name: Package and performance comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    env:
+      HONO_COMMIT: 098e11912ab244c5c33931de007f04dc8e3c2929
+    steps:
+      - name: Check out base revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Check out pull request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: current
+          persist-credentials: false
+
+      - name: Check out fixed Hono corpus
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: honojs/hono
+          ref: ${{ env.HONO_COMMIT }}
+          path: corpus
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.x
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      - name: Install hyperfine
+        uses: taiki-e/install-action@dfae9bf3d6f6c6f20ef4ebb3486c01a51341ff12 # v2.87.18
+        with:
+          tool: hyperfine@1.19.0
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd base && bun install --frozen-lockfile)
+          (cd current && bun install --frozen-lockfile)
+
+      - name: Measure build time
+        shell: bash
+        run: |
+          set -euo pipefail
+          export BASE="$GITHUB_WORKSPACE/base"
+          export CURRENT="$GITHUB_WORKSPACE/current"
+          hyperfine \
+            --warmup 2 \
+            --runs 5 \
+            --shell bash \
+            --prepare 'rm -rf "$BASE/dist" "$CURRENT/dist"' \
+            --export-json "$RUNNER_TEMP/build.json" \
+            'cd "$BASE" && bun run build' \
+            'cd "$CURRENT" && bun run build'
+
+      - name: Measure package footprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          node base/scripts/package-footprint.mjs \
+            --report "$RUNNER_TEMP/base-footprint.json" \
+            --summary "$RUNNER_TEMP/base-footprint.md"
+          node current/scripts/package-footprint.mjs \
+            --report "$RUNNER_TEMP/current-footprint.json" \
+            --summary "$RUNNER_TEMP/current-footprint.md"
+
+      - name: Measure dependency analysis speed
+        shell: bash
+        working-directory: corpus
+        run: |
+          set -euo pipefail
+          export BASE="$GITHUB_WORKSPACE/base"
+          export CURRENT="$GITHUB_WORKSPACE/current"
+          hyperfine \
+            --warmup 5 \
+            --runs 15 \
+            --shell bash \
+            --export-json "$RUNNER_TEMP/analysis.json" \
+            'node "$BASE/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src' \
+            'node "$CURRENT/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src'
+
+      - name: Generate comparison
+        shell: bash
+        env:
+          SERVER_URL: ${{ github.server_url }}
+          BASE_REPOSITORY: ${{ github.repository }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          base_commit_url="${SERVER_URL}/${BASE_REPOSITORY}/commit"
+          head_commit_url="${SERVER_URL}/${HEAD_REPOSITORY:-$BASE_REPOSITORY}/commit"
+          node current/scripts/pr-metrics-report.mjs \
+            --base-footprint "$RUNNER_TEMP/base-footprint.json" \
+            --current-footprint "$RUNNER_TEMP/current-footprint.json" \
+            --build "$RUNNER_TEMP/build.json" \
+            --analysis "$RUNNER_TEMP/analysis.json" \
+            --base-label "main ([\`${base_sha:0:7}\`](${base_commit_url}/${base_sha}))" \
+            --current-label "PR ([\`${head_sha:0:7}\`](${head_commit_url}/${head_sha}))" \
+            --corpus-commit "$HONO_COMMIT" \
+            --output "$RUNNER_TEMP/pr-metrics.md"
+          cat "$RUNNER_TEMP/pr-metrics.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update pull request comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        env:
+          REPORT_PATH: ${{ runner.temp }}/pr-metrics.md
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- oxdg-pr-metrics -->";
+            const body = fs.readFileSync(process.env.REPORT_PATH, "utf8");
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const previous = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.includes(marker),
+            );
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
