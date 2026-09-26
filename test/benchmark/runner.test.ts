@@ -32,12 +32,15 @@ function initializeCorpus(directory: string, paths: string[]): string {
 
 async function writeOxdgConsumer(workspace: string, key: string, version: string) {
   const packageDirectory = join(workspace, "consumers", key, "node_modules", "oxdg");
+  const binDirectory = join(workspace, "consumers", key, "node_modules", ".bin");
   await mkdir(join(packageDirectory, "dist", "cli"), { recursive: true });
+  await mkdir(binDirectory, { recursive: true });
   await writeFile(
     join(packageDirectory, "package.json"),
     JSON.stringify({ name: "oxdg", version }),
   );
   await writeFile(join(packageDirectory, "dist", "cli", "main.js"), "#!/usr/bin/env node\n");
+  await writeExecutable(join(binDirectory, "oxdg"), "process.exit(0);\n");
 }
 
 test("records released and main revisions against both benchmark corpora", async () => {
@@ -67,7 +70,9 @@ test("records released and main revisions against both benchmark corpora", async
         join(workspace, "consumers", tool, "node_modules", tool, "package.json"),
         JSON.stringify({ name: tool, version }),
       );
-      await mkdir(join(workspace, "consumers", tool, "node_modules", ".bin"), { recursive: true });
+      const binDirectory = join(workspace, "consumers", tool, "node_modules", ".bin");
+      await mkdir(binDirectory, { recursive: true });
+      await writeExecutable(join(binDirectory, tool), "process.exit(0);\n");
     }
 
     await writeFile(join(hono, "src", "index.ts"), "export {};\n");
@@ -129,6 +134,10 @@ test("records released and main revisions against both benchmark corpora", async
         mainFootprintPath,
         "--release-package-footprint",
         releaseFootprintPath,
+        "--warmup",
+        "2",
+        "--runs",
+        "5",
         "--output",
         output,
       ],
@@ -165,13 +174,13 @@ test("records released and main revisions against both benchmark corpora", async
 
     expect(metadata.corpora.hono.workloads.directory.files).toBe(3);
     expect(metadata.corpora.webpack.workloads.directory.files).toBe(2);
-    expect(metadata.corpora.hono.workloads.directory.commands.release).toContain(
-      'node "$OXDG_RELEASE_CLI"',
-    );
-    expect(metadata.corpora.hono.workloads.directory.commands.main).toContain(
-      'node "$OXDG_MAIN_CLI"',
-    );
-    expect(metadata.benchmark).toEqual({ warmup: 8, runs: 20 });
+    expect(metadata.corpora.hono.workloads.directory.commands).toEqual({
+      release: '"$OXDG_RELEASE_CLI" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src',
+      main: '"$OXDG_MAIN_CLI" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src',
+      dpdm: '"$DPDM_CLI" \'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}\'',
+      madge: '"$MADGE_CLI" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src',
+    });
+    expect(metadata.benchmark).toEqual({ warmup: 2, runs: 5 });
 
     for (const name of [
       "benchmark-hono-directory.json",
