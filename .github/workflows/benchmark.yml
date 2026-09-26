@@ -2,6 +2,14 @@ name: Benchmark
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Benchmark mode
+        type: choice
+        options:
+          - quick
+          - full
+        default: quick
   schedule:
     - cron: "0 4 * * 1"
   workflow_run:
@@ -62,6 +70,20 @@ jobs:
       - name: Build current oxdg
         run: bun run build
 
+      - name: Configure benchmark mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.mode }}" == "quick" ]]; then
+            echo "BENCHMARK_WARMUP=2" >> "$GITHUB_ENV"
+            echo "BENCHMARK_RUNS=5" >> "$GITHUB_ENV"
+            echo "Benchmark mode: quick (2 warmups, 5 measured runs)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "BENCHMARK_WARMUP=8" >> "$GITHUB_ENV"
+            echo "BENCHMARK_RUNS=20" >> "$GITHUB_ENV"
+            echo "Benchmark mode: full (8 warmups, 20 measured runs)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Prepare fixed benchmark corpora
         shell: bash
         run: |
@@ -96,7 +118,7 @@ jobs:
         run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --locks benchmark-package-locks --package-footprint benchmark-package-footprint.json --release-footprint benchmark-release-footprint.json
 
       - name: Run benchmark workloads and record metadata
-        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --webpack-dir "$WEBPACK_DIR" --workspace "$BENCHMARK_WORKSPACE" --main-package-footprint benchmark-package-footprint.json --release-package-footprint benchmark-release-footprint.json --output .
+        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --webpack-dir "$WEBPACK_DIR" --workspace "$BENCHMARK_WORKSPACE" --main-package-footprint benchmark-package-footprint.json --release-package-footprint benchmark-release-footprint.json --warmup "$BENCHMARK_WARMUP" --runs "$BENCHMARK_RUNS" --output .
 
       - name: Generate benchmark report and Actions Summary
         run: node scripts/benchmark-report.mjs --hono-directory benchmark-hono-directory.json --hono-entrypoint benchmark-hono-entrypoint.json --webpack-directory benchmark-webpack-directory.json --webpack-entrypoint benchmark-webpack-entrypoint.json --metadata benchmark-metadata.json --output benchmark-report --summary "$GITHUB_STEP_SUMMARY"
@@ -120,6 +142,7 @@ jobs:
             bun.lock
 
   publish-report:
+    if: needs.benchmark.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.mode == 'full')
     needs: benchmark
     runs-on: ubuntu-latest
     timeout-minutes: 10
