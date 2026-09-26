@@ -74,22 +74,27 @@ function commandsFor(directoryInput, entrypointInput) {
   const extensionList = extensions.join(",");
   return {
     directory: {
-      madge: `madge --extensions ${extensionList} ${directoryInput}`,
-      oxdg: `oxdg --extensions ${extensionList} ${directoryInput}`,
+      release: `node "$OXDG_RELEASE_CLI" --extensions ${extensionList} ${directoryInput}`,
+      main: `node "$OXDG_MAIN_CLI" --extensions ${extensionList} ${directoryInput}`,
       dpdm: `dpdm '${directoryInput}/**/*.{${extensionList}}'`,
+      madge: `madge --extensions ${extensionList} ${directoryInput}`,
     },
     entrypoint: {
-      madge: `madge --extensions ${extensionList} ${entrypointInput}`,
-      oxdg: `oxdg --extensions ${extensionList} ${entrypointInput}`,
+      release: `node "$OXDG_RELEASE_CLI" --extensions ${extensionList} ${entrypointInput}`,
+      main: `node "$OXDG_MAIN_CLI" --extensions ${extensionList} ${entrypointInput}`,
       dpdm: `dpdm --extensions ${extensionList} ${entrypointInput}`,
+      madge: `madge --extensions ${extensionList} ${entrypointInput}`,
     },
   };
 }
 
 const workspace = resolve(requiredOption("--workspace"));
 const outputDirectory = resolve(optionValue("--output") ?? ".");
-const packageFootprint = JSON.parse(
-  await readFile(resolve(requiredOption("--package-footprint")), "utf8"),
+const mainPackageFootprint = JSON.parse(
+  await readFile(resolve(requiredOption("--main-package-footprint")), "utf8"),
+);
+const releasePackageFootprint = JSON.parse(
+  await readFile(resolve(requiredOption("--release-package-footprint")), "utf8"),
 );
 
 const corpusDefinitions = [
@@ -115,14 +120,37 @@ const corpusDefinitions = [
   },
 ];
 
-const toolBinDirectories = ["oxdg", "madge", "dpdm"].map((tool) =>
+const toolBinDirectories = ["madge", "dpdm"].map((tool) =>
   join(workspace, "consumers", tool, "node_modules", ".bin"),
+);
+const releaseCli = join(
+  workspace,
+  "consumers",
+  "release",
+  "node_modules",
+  "oxdg",
+  "dist",
+  "cli",
+  "main.js",
+);
+const mainCli = join(
+  workspace,
+  "consumers",
+  "main",
+  "node_modules",
+  "oxdg",
+  "dist",
+  "cli",
+  "main.js",
 );
 const env = {
   ...process.env,
+  OXDG_RELEASE_CLI: releaseCli,
+  OXDG_MAIN_CLI: mainCli,
   PATH: [...toolBinDirectories, process.env.PATH ?? ""].join(delimiter),
 };
 
+await Promise.all([readFile(releaseCli, "utf8"), readFile(mainCli, "utf8")]);
 await mkdir(outputDirectory, { recursive: true });
 const corpora = {};
 const commandArtifact = {};
@@ -145,13 +173,23 @@ for (const definition of corpusDefinitions) {
   await Promise.all([rm(directoryOutput, { force: true }), rm(entrypointOutput, { force: true })]);
 
   await runHyperfine({
-    commands: [commands.directory.madge, commands.directory.oxdg, commands.directory.dpdm],
+    commands: [
+      commands.directory.release,
+      commands.directory.main,
+      commands.directory.dpdm,
+      commands.directory.madge,
+    ],
     output: directoryOutput,
     cwd: definition.directory,
     env,
   });
   await runHyperfine({
-    commands: [commands.entrypoint.madge, commands.entrypoint.oxdg, commands.entrypoint.dpdm],
+    commands: [
+      commands.entrypoint.release,
+      commands.entrypoint.main,
+      commands.entrypoint.dpdm,
+      commands.entrypoint.madge,
+    ],
     output: entrypointOutput,
     cwd: definition.directory,
     env,
@@ -191,7 +229,13 @@ for (const definition of corpusDefinitions) {
   );
 }
 
-const oxdgCommit = readCommand("git", ["-C", projectRoot, "rev-parse", "HEAD"]);
+const mainCommit = readCommand("git", ["-C", projectRoot, "rev-parse", "HEAD"]);
+const releaseVersion = await readPackageVersion(
+  join(workspace, "consumers/release/node_modules/oxdg/package.json"),
+);
+const mainVersion = await readPackageVersion(
+  join(workspace, "consumers/main/node_modules/oxdg/package.json"),
+);
 const metadata = {
   runner: {
     label: process.env.RUNNER_LABEL ?? "local",
@@ -204,11 +248,22 @@ const metadata = {
     uname: readCommand("uname", ["-a"]),
     cpu: JSON.parse(readCommand("lscpu", ["-J"])),
   },
-  tools: {
-    oxdg: {
-      version: await readPackageVersion(join(projectRoot, "package.json")),
-      gitCommit: oxdgCommit,
+  revisions: {
+    release: {
+      label: `Released v${releaseVersion}`,
+      source: "npm",
+      version: releaseVersion,
+      packageFootprint: releasePackageFootprint,
     },
+    main: {
+      label: "Development main",
+      source: "git",
+      version: mainVersion,
+      gitCommit: mainCommit,
+      packageFootprint: mainPackageFootprint,
+    },
+  },
+  tools: {
     madge: {
       version: await readPackageVersion(
         join(workspace, "consumers/madge/node_modules/madge/package.json"),
@@ -233,7 +288,6 @@ const metadata = {
     },
   },
   benchmark: { warmup, runs },
-  packageFootprint,
   corpora,
 };
 
