@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 4 * * 1"
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -14,6 +19,7 @@ concurrency:
 
 jobs:
   benchmark:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
