@@ -35,6 +35,10 @@ function formatDelta(base, current) {
   return `${percent > 0 ? "+" : ""}${percent.toFixed(1)}%`;
 }
 
+function formatTiming(result) {
+  return `${formatDuration(result.mean)} ± ${formatDuration(result.stddev)}`;
+}
+
 function hyperfinePair(raw) {
   if (!Array.isArray(raw.results) || raw.results.length !== 2) {
     throw new Error("expected exactly two hyperfine results");
@@ -63,7 +67,7 @@ const baseLabel = optionValue("--base-label") ?? "main";
 const currentLabel = optionValue("--current-label") ?? "PR";
 const corpusCommit = optionValue("--corpus-commit") ?? "unknown";
 
-const rows = [
+const packageRows = [
   [
     "Packed package",
     formatBytes(baseFootprint.packedSizeBytes),
@@ -82,33 +86,53 @@ const rows = [
     formatBytes(currentFootprint.nodeModulesSizeBytes),
     formatDelta(baseFootprint.nodeModulesSizeBytes, currentFootprint.nodeModulesSizeBytes),
   ],
+];
+
+const performanceRows = [
   [
-    "Build time",
-    formatDuration(build.base.mean),
-    formatDuration(build.current.mean),
+    "Build",
+    formatTiming(build.base),
+    formatTiming(build.current),
     formatDelta(build.base.mean, build.current.mean),
   ],
   [
     "Hono directory analysis",
-    formatDuration(analysis.base.mean),
-    formatDuration(analysis.current.mean),
+    formatTiming(analysis.base),
+    formatTiming(analysis.current),
     formatDelta(analysis.base.mean, analysis.current.mean),
   ],
+];
+
+const table = (rows) => [
+  `| Metric | ${baseLabel} | ${currentLabel} | Δ |`,
+  "| --- | ---: | ---: | ---: |",
+  ...rows.map((row) => `| ${row.join(" | ")} |`),
 ];
 
 const body = [
   "<!-- oxdg-pr-metrics -->",
   "## PR metrics",
   "",
-  `| Metric | ${baseLabel} | ${currentLabel} | Change |`,
-  "| --- | ---: | ---: | ---: |",
-  ...rows.map((row) => `| ${row.join(" | ")} |`),
+  "A lightweight comparison against the PR base. Lower values are better; timing measurements are informational and may vary on hosted runners.",
   "",
-  "These measurements are informational and do not gate the PR. Hosted-runner timing can vary between runs.",
+  "### Package footprint",
   "",
-  `- Build: 2 warmups, 5 measured runs per revision`,
-  `- Processing: fixed Hono corpus at \`${corpusCommit}\`, 5 warmups, 15 measured runs per revision`,
+  ...table(packageRows),
+  "",
+  "### Performance",
+  "",
+  ...table(performanceRows),
+  "",
+  "<details>",
+  "<summary>Measurement details</summary>",
+  "",
+  `- Build: 2 warmups, 5 measured runs per revision.`,
+  `- Processing: fixed Hono corpus at \`${corpusCommit}\`, 5 warmups, 15 measured runs per revision.`,
+  "- Timing cells show mean ± standard deviation.",
   "- Package footprint uses the same packed-package validation as release checks.",
+  "- These metrics do not gate the PR.",
+  "",
+  "</details>",
   "",
 ].join("\n");
 
