@@ -87,3 +87,6 @@ jobs:
 
       - name: Smoke test CLI with Node.js
         run: node dist/cli/main.js src/index.ts --json
+
+      - name: Verify CommonJS extraction with Node.js
+        run: node --input-type=module -e "import { analyze } from './dist/index.js'; const { graph } = await analyze('test/fixtures/basic-esm/src/legacy.cjs'); if (!graph.edges.some((edge) => edge.kind === 'require' && edge.specifier === './lib/legacy.cjs')) process.exit(1);"

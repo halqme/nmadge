@@ -44,6 +44,14 @@ describe("dependency extraction", () => {
     ]);
   });
 
+  test("preserves escaped require identifiers", () => {
+    const result = extractImports('requ\\u0069re("./escaped.js");', "sample.js");
+
+    expect(result.imports).toEqual([
+      { specifier: "./escaped.js", kind: "require", typeOnly: false },
+    ]);
+  });
+
   test("warns when dynamic imports and require calls use non-static specifiers", () => {
     const result = extractImports("import(path);\nrequire(name);", "sample.ts");
 
