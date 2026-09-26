@@ -117,11 +117,7 @@ function normalizeCorpus(key, metadata, raw) {
     repository: corpus.repository,
     commit: corpus.commit,
     workloads: {
-      directory: normalizeWorkload(
-        raw.directory,
-        corpus.workloads.directory,
-        `${key} directory`,
-      ),
+      directory: normalizeWorkload(raw.directory, corpus.workloads.directory, `${key} directory`),
       entrypoint: normalizeWorkload(
         raw.entrypoint,
         corpus.workloads.entrypoint,
@@ -157,9 +153,7 @@ function makeMarkdown(report) {
     const entrypoint = corpus.workloads.entrypoint;
     const summary = (workload) =>
       ["dpdm", "madge"]
-        .map((tool) =>
-          comparisonForOxdg(workload.relativePerformance[tool].ratioToOxdg, tool),
-        )
+        .map((tool) => comparisonForOxdg(workload.relativePerformance[tool].ratioToOxdg, tool))
         .join(", ");
 
     lines.push(
@@ -368,7 +362,7 @@ ${corpusOrder.map(corpusSection).join("")}
   <div class="metric-grid"><div><span>Packed</span><strong>${formatBytes(packageFootprint.packedSizeBytes)}</strong></div><div><span>Unpacked</span><strong>${formatBytes(packageFootprint.unpackedSizeBytes)}</strong></div><div><span>Installed node_modules</span><strong>${formatBytes(packageFootprint.nodeModulesSizeBytes)}</strong></div></div>
 </section>
 <details class="panel"><summary>Methodology and environment</summary><div class="details-body">
-  <div class="meta-grid"><div><span>Runner</span><strong>${escapeHtml(environment.runner.label)}</strong></div><div><span>Runner image</span><strong>${escapeHtml(runnerImage)}</strong></div><div><span>CPU</span><strong>${escapeHtml(cpuDetails(environment.host.cpu))}</strong></div><div><span>oxdg</span><strong>${escapeHtml(environment.tools.oxdg.version)} · ${escapeHtml(environment.tools.oxdg.gitCommit.slice(0,12))}</strong></div><div><span>Comparison tools</span><strong>dpdm ${escapeHtml(environment.tools.dpdm.version)} · Madge ${escapeHtml(environment.tools.madge.version)}</strong></div><div><span>Runtimes</span><strong>Node ${escapeHtml(environment.runtimes.node.actual)} · Bun ${escapeHtml(environment.runtimes.bun.actual)}</strong></div></div>
+  <div class="meta-grid"><div><span>Runner</span><strong>${escapeHtml(environment.runner.label)}</strong></div><div><span>Runner image</span><strong>${escapeHtml(runnerImage)}</strong></div><div><span>CPU</span><strong>${escapeHtml(cpuDetails(environment.host.cpu))}</strong></div><div><span>oxdg</span><strong>${escapeHtml(environment.tools.oxdg.version)} · ${escapeHtml(environment.tools.oxdg.gitCommit.slice(0, 12))}</strong></div><div><span>Comparison tools</span><strong>dpdm ${escapeHtml(environment.tools.dpdm.version)} · Madge ${escapeHtml(environment.tools.madge.version)}</strong></div><div><span>Runtimes</span><strong>Node ${escapeHtml(environment.runtimes.node.actual)} · Bun ${escapeHtml(environment.runtimes.bun.actual)}</strong></div></div>
   ${commandDetails}
 </div></details>
 <footer><a href="latest.json">Normalized JSON</a>${environment.runner.workflowRunId ? ` · Workflow run ${escapeHtml(environment.runner.workflowRunId)}` : ""}</footer>
