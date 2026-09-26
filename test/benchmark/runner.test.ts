@@ -5,8 +5,6 @@ import { tmpdir } from "node:os";
 import { expect, test } from "bun:test";
 
 const runnerScript = join(import.meta.dir, "../../scripts/benchmark-runner.mjs");
-const extensions = ["js", "jsx", "ts", "tsx", "mjs", "cjs", "mts", "cts"];
-
 async function writeExecutable(path: string, source: string) {
   await writeFile(path, `#!/usr/bin/env node\n${source}`, { mode: 0o755 });
   await chmod(path, 0o755);
