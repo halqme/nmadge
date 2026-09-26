@@ -466,7 +466,11 @@ await Promise.all([
   writeFile(join(outputDirectory, "release.json"), `${JSON.stringify(release, null, 2)}\n`, "utf8"),
   writeFile(join(outputDirectory, "main.json"), `${JSON.stringify(main, null, 2)}\n`, "utf8"),
   writeFile(join(outputDirectory, "latest.json"), `${JSON.stringify(combined, null, 2)}\n`, "utf8"),
-  writeFile(join(outputDirectory, "index.html"), makeHtml(release, main, comparison, generatedAt), "utf8"),
+  writeFile(
+    join(outputDirectory, "index.html"),
+    makeHtml(release, main, comparison, generatedAt),
+    "utf8",
+  ),
   ...Object.entries(badges).map(([name, badge]) =>
     writeFile(join(outputDirectory, "badges", name), `${JSON.stringify(badge, null, 2)}\n`, "utf8"),
   ),
