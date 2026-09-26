@@ -177,7 +177,7 @@ test("records released and main revisions against both benchmark corpora", async
     expect(metadata.corpora.hono.workloads.directory.commands).toEqual({
       release: '"$OXDG_RELEASE_CLI" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src',
       main: '"$OXDG_MAIN_CLI" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src',
-      dpdm: '"$DPDM_CLI" \'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}\'',
+      dpdm: "\"$DPDM_CLI\" 'src/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}'",
       madge: '"$MADGE_CLI" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src',
     });
     expect(metadata.benchmark).toEqual({ warmup: 2, runs: 5 });
