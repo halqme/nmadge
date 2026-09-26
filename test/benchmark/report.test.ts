@@ -11,22 +11,24 @@ function commands(directoryInput: string, entrypointInput: string) {
   const list = extensions.join(",");
   return {
     directory: {
-      madge: `madge --extensions ${list} ${directoryInput}`,
-      oxdg: `oxdg --extensions ${list} ${directoryInput}`,
+      release: `node "$OXDG_RELEASE_CLI" --extensions ${list} ${directoryInput}`,
+      main: `node "$OXDG_MAIN_CLI" --extensions ${list} ${directoryInput}`,
       dpdm: `dpdm '${directoryInput}/**/*.{${list}}'`,
+      madge: `madge --extensions ${list} ${directoryInput}`,
     },
     entrypoint: {
-      madge: `madge --extensions ${list} ${entrypointInput}`,
-      oxdg: `oxdg --extensions ${list} ${entrypointInput}`,
+      release: `node "$OXDG_RELEASE_CLI" --extensions ${list} ${entrypointInput}`,
+      main: `node "$OXDG_MAIN_CLI" --extensions ${list} ${entrypointInput}`,
       dpdm: `dpdm --extensions ${list} ${entrypointInput}`,
+      madge: `madge --extensions ${list} ${entrypointInput}`,
     },
   };
 }
 
-function hyperfine(commands: Record<string, string>, meanSeconds: Record<string, number>) {
+function hyperfine(commands: Record<string, string>, means: Record<string, number>) {
   return {
     results: Object.entries(commands).map(([tool, command]) => {
-      const mean = meanSeconds[tool];
+      const mean = means[tool];
       if (mean === undefined) throw new Error(`missing synthetic timing for ${tool}`);
       return {
         command,
@@ -61,8 +63,34 @@ function metadata() {
         ],
       },
     },
+    revisions: {
+      release: {
+        label: "Released v0.3.0",
+        source: "npm",
+        version: "0.3.0",
+        packageFootprint: {
+          package: "oxdg",
+          version: "0.3.0",
+          packedSizeBytes: 40000,
+          unpackedSizeBytes: 100000,
+          nodeModulesSizeBytes: 2000000,
+        },
+      },
+      main: {
+        label: "Development main",
+        source: "git",
+        version: "0.4.0",
+        gitCommit: "abcdef1234567890abcdef1234567890abcdef12",
+        packageFootprint: {
+          package: "oxdg",
+          version: "0.4.0",
+          packedSizeBytes: 42000,
+          unpackedSizeBytes: 110000,
+          nodeModulesSizeBytes: 2100000,
+        },
+      },
+    },
     tools: {
-      oxdg: { version: "0.3.0", gitCommit: "abcdef123" },
       dpdm: { version: "4.3.0" },
       madge: { version: "8.0.0" },
     },
@@ -73,13 +101,6 @@ function metadata() {
       hyperfine: { requested: "1.19.0", actual: "hyperfine 1.19.0" },
     },
     benchmark: { warmup: 8, runs: 20 },
-    packageFootprint: {
-      package: "oxdg",
-      version: "0.3.0",
-      packedSizeBytes: 40000,
-      unpackedSizeBytes: 100000,
-      nodeModulesSizeBytes: 2000000,
-    },
     corpora: {
       hono: {
         name: "honojs/hono",
@@ -135,27 +156,27 @@ async function writeValidInputs(inputs: string) {
   await writeInput(
     inputs,
     "hono-directory.json",
-    hyperfine(honoCommands.directory, { madge: 2, oxdg: 0.5, dpdm: 1 }),
+    hyperfine(honoCommands.directory, { release: 0.5, main: 0.25, dpdm: 1, madge: 2 }),
   );
   await writeInput(
     inputs,
     "hono-entrypoint.json",
-    hyperfine(honoCommands.entrypoint, { madge: 0.4, oxdg: 0.1, dpdm: 0.2 }),
+    hyperfine(honoCommands.entrypoint, { release: 0.2, main: 0.1, dpdm: 0.4, madge: 0.8 }),
   );
   await writeInput(
     inputs,
     "webpack-directory.json",
-    hyperfine(webpackCommands.directory, { madge: 4, oxdg: 1, dpdm: 2 }),
+    hyperfine(webpackCommands.directory, { release: 1, main: 0.5, dpdm: 2, madge: 4 }),
   );
   await writeInput(
     inputs,
     "webpack-entrypoint.json",
-    hyperfine(webpackCommands.entrypoint, { madge: 0.8, oxdg: 0.2, dpdm: 0.4 }),
+    hyperfine(webpackCommands.entrypoint, { release: 0.8, main: 0.4, dpdm: 1.6, madge: 3.2 }),
   );
   await writeInput(inputs, "metadata.json", metadata());
 }
 
-test("generates a normalized dual-corpus report and Pages output", async () => {
+test("generates stable and development benchmark reports", async () => {
   const root = await mkdtemp(join(tmpdir(), "oxdg-benchmark-report-"));
   const inputs = join(root, "inputs");
   const output = join(root, "report");
@@ -165,53 +186,78 @@ test("generates a normalized dual-corpus report and Pages output", async () => {
     const result = generate(inputs, output);
     if (result.status !== 0) throw new Error(`${result.stderr}\n${result.stdout}`);
 
-    const normalized = JSON.parse(await readFile(join(output, "latest.json"), "utf8"));
-    expect(normalized.corpora.hono.profile).toBe("ESM / TypeScript");
-    expect(normalized.corpora.hono.workloads.directory.files).toBe(311);
-    expect(normalized.corpora.hono.workloads.directory.results.oxdg.meanMs).toBe(500);
-    expect(normalized.corpora.webpack.profile).toBe("CommonJS / JavaScript");
-    expect(normalized.corpora.webpack.workloads.directory.files).toBe(776);
-    expect(normalized.corpora.webpack.workloads.directory.results.oxdg.meanMs).toBe(1000);
-    expect(normalized.corpora.webpack.workloads.directory.relativePerformance.madge).toMatchObject({
+    const release = JSON.parse(await readFile(join(output, "release.json"), "utf8"));
+    const main = JSON.parse(await readFile(join(output, "main.json"), "utf8"));
+    const combined = JSON.parse(await readFile(join(output, "latest.json"), "utf8"));
+
+    expect(release.revision).toMatchObject({ key: "release", source: "npm", version: "0.3.0" });
+    expect(release.corpora.hono.workloads.directory.results.oxdg.meanMs).toBe(500);
+    expect(release.corpora.webpack.workloads.directory.results.oxdg.meanMs).toBe(1000);
+    expect(release.corpora.hono.workloads.directory.relativePerformance.madge).toMatchObject({
       ratioToOxdg: 4,
       label: "4.00× slower",
     });
 
-    const summary = await readFile(join(output, "summary.md"), "utf8");
-    expect(summary).toContain("honojs/hono — ESM / TypeScript");
-    expect(summary).toContain("webpack/webpack — CommonJS / JavaScript");
-    expect(summary).toContain("311");
-    expect(summary).toContain("776");
-    expect(summary).toContain("8 warmups, 20 measured runs");
+    expect(main.revision).toMatchObject({
+      key: "main",
+      source: "git",
+      gitCommit: "abcdef1234567890abcdef1234567890abcdef12",
+    });
+    expect(main.corpora.hono.workloads.directory.results.oxdg.meanMs).toBe(250);
+    expect(main.corpora.webpack.workloads.directory.results.oxdg.meanMs).toBe(500);
 
-    const honoBadge = JSON.parse(await readFile(join(output, "badges/runtime.json"), "utf8"));
-    const webpackBadge = JSON.parse(
-      await readFile(join(output, "badges/webpack-runtime.json"), "utf8"),
-    );
-    expect(honoBadge).toMatchObject({ label: "Hono benchmark", message: "500 ms" });
-    expect(webpackBadge).toMatchObject({ label: "Webpack benchmark", message: "1000 ms" });
+    expect(combined.schemaVersion).toBe(2);
+    expect(combined.sinceRelease.hono.directory).toMatchObject({
+      releaseMs: 500,
+      mainMs: 250,
+      deltaPercent: -50,
+      speedup: 2,
+    });
+
+    const summary = await readFile(join(output, "summary.md"), "utf8");
+    expect(summary).toContain("Released — oxdg v0.3.0");
+    expect(summary).toContain("Development — main @ abcdef123456");
+    expect(summary).toContain("Since latest release");
+    expect(summary).toContain("-50.0%");
+
+    const releaseBadge = JSON.parse(await readFile(join(output, "badges/runtime.json"), "utf8"));
+    const mainBadge = JSON.parse(await readFile(join(output, "badges/main-runtime.json"), "utf8"));
+    expect(releaseBadge).toMatchObject({
+      label: "Hono · oxdg v0.3.0",
+      message: "500 ms",
+    });
+    expect(mainBadge).toMatchObject({
+      label: "Hono · oxdg main",
+      message: "250 ms",
+    });
 
     const page = await readFile(join(output, "index.html"), "utf8");
-    expect(page).toContain("honojs/hono");
-    expect(page).toContain("webpack/webpack");
-    expect(page).toContain("ESM / TypeScript");
-    expect(page).toContain("CommonJS / JavaScript");
-    expect(page).toContain("Directory-wide analysis");
-    expect(page).toContain("Entrypoint analysis");
+    expect(page).toContain("Released v0.3.0");
+    expect(page).toContain("Development main");
+    expect(page).toContain("Since latest release");
+    expect(page).toContain("release.json");
+    expect(page).toContain("main.json");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("rejects incomplete corpus results without publishing partial report files", async () => {
+test("rejects incomplete revision results", async () => {
   const root = await mkdtemp(join(tmpdir(), "oxdg-benchmark-report-invalid-"));
   const inputs = join(root, "inputs");
   const output = join(root, "report");
   await mkdir(inputs);
   try {
     await writeValidInputs(inputs);
-    const invalid = hyperfine(webpackCommands.directory, { madge: 4, oxdg: 1, dpdm: 2 });
-    delete (invalid.results[0] as Partial<(typeof invalid.results)[number]>).max;
+    const invalid = hyperfine(webpackCommands.directory, {
+      release: 1,
+      main: 0.5,
+      dpdm: 2,
+      madge: 4,
+    });
+    invalid.results = invalid.results.filter(
+      (item) => item.command !== webpackCommands.directory.main,
+    );
     await writeInput(inputs, "webpack-directory.json", invalid);
 
     const result = generate(inputs, output);

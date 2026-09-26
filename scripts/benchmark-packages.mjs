@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -32,6 +32,19 @@ function parsePackResult(stdout) {
   return results[0];
 }
 
+async function directorySize(directory) {
+  let size = 0;
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      size += await directorySize(path);
+    } else {
+      size += (await lstat(path)).size;
+    }
+  }
+  return size;
+}
+
 async function packPackage({ destination, cwd, spec }) {
   await rm(destination, { force: true, recursive: true });
   await mkdir(destination, { recursive: true });
@@ -41,7 +54,7 @@ async function packPackage({ destination, cwd, spec }) {
     cwd,
   );
   const packed = parsePackResult(stdout);
-  return join(destination, packed.filename);
+  return { packed, tarball: join(destination, packed.filename) };
 }
 
 async function installPackage({ consumer, packageName, tarball, lockDirectory }) {
@@ -71,20 +84,27 @@ async function installPackage({ consumer, packageName, tarball, lockDirectory })
 const workspaceOption = optionValue("--workspace");
 const lockDirectoryOption = optionValue("--locks");
 const packageFootprintOption = optionValue("--package-footprint");
-if (!workspaceOption || !lockDirectoryOption || !packageFootprintOption) {
+const releaseFootprintOption = optionValue("--release-footprint");
+if (
+  !workspaceOption ||
+  !lockDirectoryOption ||
+  !packageFootprintOption ||
+  !releaseFootprintOption
+) {
   throw new Error(
-    "usage: node scripts/benchmark-packages.mjs --workspace DIR --locks DIR --package-footprint FILE",
+    "usage: node scripts/benchmark-packages.mjs --workspace DIR --locks DIR --package-footprint FILE --release-footprint FILE",
   );
 }
 
 const workspace = resolve(workspaceOption);
 const lockDirectory = resolve(lockDirectoryOption);
-const packageFootprint = JSON.parse(await readFile(resolve(packageFootprintOption), "utf8"));
-if (packageFootprint.package !== "oxdg" || typeof packageFootprint.tarballFilename !== "string") {
+const releaseFootprintPath = resolve(releaseFootprintOption);
+const mainFootprint = JSON.parse(await readFile(resolve(packageFootprintOption), "utf8"));
+if (mainFootprint.package !== "oxdg" || typeof mainFootprint.tarballFilename !== "string") {
   throw new Error("package footprint report is missing the oxdg tarball filename");
 }
-const oxdgTarball = join(workspace, "packs", "oxdg", packageFootprint.tarballFilename);
-await lstat(oxdgTarball);
+const mainTarball = join(workspace, "packs", "oxdg", mainFootprint.tarballFilename);
+await lstat(mainTarball);
 await mkdir(join(workspace, "packs"), { recursive: true });
 await mkdir(join(workspace, "consumers"), { recursive: true });
 await mkdir(lockDirectory, { recursive: true });
@@ -93,26 +113,63 @@ await writeFile(
   `${JSON.stringify({ name: "oxdg-benchmark-workspace", private: true })}\n`,
 );
 
-const packages = [
-  { key: "oxdg", tarball: oxdgTarball },
+const releaseSpec = process.env.OXDG_RELEASE_SPEC ?? "oxdg@latest";
+const releasePack = await packPackage({
+  destination: join(workspace, "packs", "release"),
+  cwd: workspace,
+  spec: releaseSpec,
+});
+await installPackage({
+  consumer: join(workspace, "consumers", "release"),
+  packageName: "release",
+  tarball: releasePack.tarball,
+  lockDirectory,
+});
+const releasePackageJson = JSON.parse(
+  await readFile(
+    join(workspace, "consumers", "release", "node_modules", "oxdg", "package.json"),
+    "utf8",
+  ),
+);
+const releaseFootprint = {
+  package: releasePackageJson.name,
+  version: releasePackageJson.version,
+  spec: releaseSpec,
+  tarballFilename: releasePack.packed.filename,
+  packedSizeBytes: (await lstat(releasePack.tarball)).size,
+  unpackedSizeBytes: releasePack.packed.unpackedSize,
+  nodeModulesSizeBytes: await directorySize(
+    join(workspace, "consumers", "release", "node_modules"),
+  ),
+  fileCount: Array.isArray(releasePack.packed.files) ? releasePack.packed.files.length : undefined,
+  measuredAt: new Date().toISOString(),
+};
+await writeFile(releaseFootprintPath, `${JSON.stringify(releaseFootprint, null, 2)}\n`);
+
+await installPackage({
+  consumer: join(workspace, "consumers", "main"),
+  packageName: "main",
+  tarball: mainTarball,
+  lockDirectory,
+});
+
+for (const definition of [
   { key: "madge", spec: `madge@${process.env.MADGE_VERSION ?? "8.0.0"}` },
   { key: "dpdm", spec: `dpdm@${process.env.DPDM_VERSION ?? "4.3.0"}` },
-];
-for (const definition of packages) {
-  const tarball =
-    definition.tarball ??
-    (await packPackage({
-      destination: join(workspace, "packs", definition.key),
-      cwd: workspace,
-      spec: definition.spec,
-    }));
+]) {
+  const packed = await packPackage({
+    destination: join(workspace, "packs", definition.key),
+    cwd: workspace,
+    spec: definition.spec,
+  });
   await installPackage({
     consumer: join(workspace, "consumers", definition.key),
     packageName: definition.key,
-    tarball,
+    tarball: packed.tarball,
     lockDirectory,
   });
 }
+
 console.log(
-  `Installed oxdg, Madge, and dpdm in clean consumers; dependency locks saved to ${lockDirectory}`,
+  `Installed released oxdg ${releasePackageJson.version}, main oxdg, Madge, and dpdm in clean consumers; dependency locks saved to ${lockDirectory}`,
 );

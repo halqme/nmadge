@@ -37,11 +37,11 @@ npx oxdg src --image graph.svg
 
 ## Performance
 
-Performance is measured independently from releases by a dedicated benchmark workflow that runs weekly or on demand. It compares oxdg against pinned versions of other dependency-graph tools on a fixed [Hono](https://github.com/honojs/hono) revision.
+The stable benchmark measures the latest published npm release of oxdg against pinned versions of other dependency-graph tools on fixed [Hono](https://github.com/honojs/hono) and [Webpack](https://github.com/webpack/webpack) revisions.
 
-The full report records runtime statistics, exact commands, package footprint, dependency locks, and runner metadata.
+The full report records runtime statistics, release-to-main changes, exact commands, package footprint, dependency locks, and runner metadata.
 
-[View the latest benchmark report →](https://halqme.github.io/oxdg/)
+[View the released and development benchmark report →](https://halqme.github.io/oxdg/#released)
 
 ## Package footprint
 
