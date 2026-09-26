@@ -54,7 +54,12 @@ function metadata() {
     },
     host: {
       uname: "Linux runner",
-      cpu: { lscpu: [{ field: "Model name:", data: "Test CPU" }, { field: "CPU(s):", data: "2" }] },
+      cpu: {
+        lscpu: [
+          { field: "Model name:", data: "Test CPU" },
+          { field: "CPU(s):", data: "2" },
+        ],
+      },
     },
     tools: {
       oxdg: { version: "0.3.0", gitCommit: "abcdef123" },
@@ -109,22 +114,44 @@ function generate(directory: string, output: string) {
     "node",
     [
       reportScript,
-      "--hono-directory", join(directory, "hono-directory.json"),
-      "--hono-entrypoint", join(directory, "hono-entrypoint.json"),
-      "--webpack-directory", join(directory, "webpack-directory.json"),
-      "--webpack-entrypoint", join(directory, "webpack-entrypoint.json"),
-      "--metadata", join(directory, "metadata.json"),
-      "--output", output,
+      "--hono-directory",
+      join(directory, "hono-directory.json"),
+      "--hono-entrypoint",
+      join(directory, "hono-entrypoint.json"),
+      "--webpack-directory",
+      join(directory, "webpack-directory.json"),
+      "--webpack-entrypoint",
+      join(directory, "webpack-entrypoint.json"),
+      "--metadata",
+      join(directory, "metadata.json"),
+      "--output",
+      output,
     ],
     { encoding: "utf8" },
   );
 }
 
 async function writeValidInputs(inputs: string) {
-  await writeInput(inputs, "hono-directory.json", hyperfine(honoCommands.directory, { madge: 2, oxdg: 0.5, dpdm: 1 }));
-  await writeInput(inputs, "hono-entrypoint.json", hyperfine(honoCommands.entrypoint, { madge: 0.4, oxdg: 0.1, dpdm: 0.2 }));
-  await writeInput(inputs, "webpack-directory.json", hyperfine(webpackCommands.directory, { madge: 4, oxdg: 1, dpdm: 2 }));
-  await writeInput(inputs, "webpack-entrypoint.json", hyperfine(webpackCommands.entrypoint, { madge: 0.8, oxdg: 0.2, dpdm: 0.4 }));
+  await writeInput(
+    inputs,
+    "hono-directory.json",
+    hyperfine(honoCommands.directory, { madge: 2, oxdg: 0.5, dpdm: 1 }),
+  );
+  await writeInput(
+    inputs,
+    "hono-entrypoint.json",
+    hyperfine(honoCommands.entrypoint, { madge: 0.4, oxdg: 0.1, dpdm: 0.2 }),
+  );
+  await writeInput(
+    inputs,
+    "webpack-directory.json",
+    hyperfine(webpackCommands.directory, { madge: 4, oxdg: 1, dpdm: 2 }),
+  );
+  await writeInput(
+    inputs,
+    "webpack-entrypoint.json",
+    hyperfine(webpackCommands.entrypoint, { madge: 0.8, oxdg: 0.2, dpdm: 0.4 }),
+  );
   await writeInput(inputs, "metadata.json", metadata());
 }
 
