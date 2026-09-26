@@ -19,6 +19,7 @@ jobs:
     continue-on-error: true
     env:
       HONO_COMMIT: 098e11912ab244c5c33931de007f04dc8e3c2929
+      WEBPACK_COMMIT: e9e02fb312a904c04e151ebd08aaa03364a31513
     steps:
       - name: Check out base revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,7 +40,15 @@ jobs:
         with:
           repository: honojs/hono
           ref: ${{ env.HONO_COMMIT }}
-          path: corpus
+          path: corpus-hono
+          persist-credentials: false
+
+      - name: Check out fixed Webpack corpus
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: webpack/webpack
+          ref: ${{ env.WEBPACK_COMMIT }}
+          path: corpus-webpack
           persist-credentials: false
 
       - name: Set up Node.js
@@ -90,9 +99,9 @@ jobs:
             --report "$RUNNER_TEMP/current-footprint.json" \
             --summary "$RUNNER_TEMP/current-footprint.md"
 
-      - name: Measure dependency analysis speed
+      - name: Measure Hono dependency analysis speed
         shell: bash
-        working-directory: corpus
+        working-directory: corpus-hono
         run: |
           set -euo pipefail
           export BASE="$GITHUB_WORKSPACE/base"
@@ -101,16 +110,38 @@ jobs:
             --warmup 5 \
             --runs 15 \
             --shell bash \
-            --export-json "$RUNNER_TEMP/analysis-directory.json" \
+            --export-json "$RUNNER_TEMP/hono-directory.json" \
             'node "$BASE/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src' \
             'node "$CURRENT/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src'
           hyperfine \
             --warmup 5 \
             --runs 15 \
             --shell bash \
-            --export-json "$RUNNER_TEMP/analysis-entrypoint.json" \
+            --export-json "$RUNNER_TEMP/hono-entrypoint.json" \
             'node "$BASE/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src/index.ts' \
             'node "$CURRENT/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts src/index.ts'
+
+      - name: Measure Webpack dependency analysis speed
+        shell: bash
+        working-directory: corpus-webpack
+        run: |
+          set -euo pipefail
+          export BASE="$GITHUB_WORKSPACE/base"
+          export CURRENT="$GITHUB_WORKSPACE/current"
+          hyperfine \
+            --warmup 5 \
+            --runs 15 \
+            --shell bash \
+            --export-json "$RUNNER_TEMP/webpack-directory.json" \
+            'node "$BASE/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts lib' \
+            'node "$CURRENT/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts lib'
+          hyperfine \
+            --warmup 5 \
+            --runs 15 \
+            --shell bash \
+            --export-json "$RUNNER_TEMP/webpack-entrypoint.json" \
+            'node "$BASE/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts lib/index.js' \
+            'node "$CURRENT/dist/cli/main.js" --extensions js,jsx,ts,tsx,mjs,cjs,mts,cts lib/index.js'
 
       - name: Generate comparison
         shell: bash
@@ -128,11 +159,14 @@ jobs:
             --base-footprint "$RUNNER_TEMP/base-footprint.json" \
             --current-footprint "$RUNNER_TEMP/current-footprint.json" \
             --build "$RUNNER_TEMP/build.json" \
-            --directory-analysis "$RUNNER_TEMP/analysis-directory.json" \
-            --entrypoint-analysis "$RUNNER_TEMP/analysis-entrypoint.json" \
+            --hono-directory "$RUNNER_TEMP/hono-directory.json" \
+            --hono-entrypoint "$RUNNER_TEMP/hono-entrypoint.json" \
+            --webpack-directory "$RUNNER_TEMP/webpack-directory.json" \
+            --webpack-entrypoint "$RUNNER_TEMP/webpack-entrypoint.json" \
             --base-label "main ([\`${base_sha:0:7}\`](${base_commit_url}/${base_sha}))" \
             --current-label "PR ([\`${head_sha:0:7}\`](${head_commit_url}/${head_sha}))" \
-            --corpus-commit "$HONO_COMMIT" \
+            --hono-commit "$HONO_COMMIT" \
+            --webpack-commit "$WEBPACK_COMMIT" \
             --output "$RUNNER_TEMP/pr-metrics.md"
           cat "$RUNNER_TEMP/pr-metrics.md" >> "$GITHUB_STEP_SUMMARY"
 
