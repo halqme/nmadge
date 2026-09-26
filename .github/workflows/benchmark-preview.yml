@@ -1,0 +1,94 @@
+name: Benchmark Preview
+
+on:
+  push:
+    branches:
+      - ci/benchmark-release-and-main
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MADGE_VERSION: 8.0.0
+      DPDM_VERSION: 4.3.0
+      NODE_VERSION: 24.x
+      BUN_VERSION: 1.4.2
+      HYPERFINE_VERSION: 1.19.0
+      RUNNER_LABEL: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.x
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - uses: taiki-e/install-action@dfae9bf3d6f6c6f20ef4ebb3486c01a51341ff12 # v2.87.18
+        with:
+          tool: hyperfine@1.19.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Prepare tiny corpora
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$RUNNER_TEMP/oxdg-benchmark-preview"
+          hono="$workspace/hono"
+          webpack="$workspace/webpack"
+          mkdir -p "$hono/src" "$webpack/lib"
+
+          printf 'import "./dep.js";\n' > "$hono/src/index.ts"
+          printf 'export {};\n' > "$hono/src/dep.ts"
+          git init -q "$hono"
+          git -C "$hono" config user.email test@example.com
+          git -C "$hono" config user.name Benchmark
+          git -C "$hono" add src
+          git -C "$hono" -c commit.gpgSign=false commit --no-gpg-sign -qm corpus
+
+          printf 'require("./dep.js");\n' > "$webpack/lib/index.js"
+          printf 'module.exports = {};\n' > "$webpack/lib/dep.js"
+          git init -q "$webpack"
+          git -C "$webpack" config user.email test@example.com
+          git -C "$webpack" config user.name Benchmark
+          git -C "$webpack" add lib
+          git -C "$webpack" -c commit.gpgSign=false commit --no-gpg-sign -qm corpus
+
+          {
+            echo "BENCHMARK_WORKSPACE=$workspace"
+            echo "HONO_DIR=$hono"
+            echo "WEBPACK_DIR=$webpack"
+            echo "HONO_COMMIT=$(git -C "$hono" rev-parse HEAD)"
+            echo "WEBPACK_COMMIT=$(git -C "$webpack" rev-parse HEAD)"
+          } >> "$GITHUB_ENV"
+      - name: Pack main
+        run: node scripts/package-footprint.mjs --output "$BENCHMARK_WORKSPACE/packs/oxdg" --report benchmark-package-footprint.json
+      - name: Install benchmark packages
+        run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --locks benchmark-package-locks --package-footprint benchmark-package-footprint.json --release-footprint benchmark-release-footprint.json
+      - name: Run preview benchmark
+        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --webpack-dir "$WEBPACK_DIR" --workspace "$BENCHMARK_WORKSPACE" --main-package-footprint benchmark-package-footprint.json --release-package-footprint benchmark-release-footprint.json --output .
+      - name: Generate report
+        run: node scripts/benchmark-report.mjs --hono-directory benchmark-hono-directory.json --hono-entrypoint benchmark-hono-entrypoint.json --webpack-directory benchmark-webpack-directory.json --webpack-entrypoint benchmark-webpack-entrypoint.json --metadata benchmark-metadata.json --output benchmark-report
+      - name: Verify report outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const release = JSON.parse(readFileSync("benchmark-report/release.json", "utf8"));
+          const main = JSON.parse(readFileSync("benchmark-report/main.json", "utf8"));
+          const combined = JSON.parse(readFileSync("benchmark-report/latest.json", "utf8"));
+          const html = readFileSync("benchmark-report/index.html", "utf8");
+          if (release.revision.source !== "npm") throw new Error("release is not npm-backed");
+          if (main.revision.source !== "git") throw new Error("main is not git-backed");
+          if (combined.schemaVersion !== 2) throw new Error("combined report schema mismatch");
+          if (!html.includes("Released") || !html.includes("Development")) {
+            throw new Error("report does not show both revisions");
+          }
+          console.log(`release=${release.revision.version} main=${main.revision.gitCommit.slice(0, 12)}`);
+          NODE
