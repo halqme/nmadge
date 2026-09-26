@@ -21,6 +21,8 @@ jobs:
     env:
       HONO_REPOSITORY: https://github.com/honojs/hono.git
       HONO_COMMIT: 098e11912ab244c5c33931de007f04dc8e3c2929
+      WEBPACK_REPOSITORY: https://github.com/webpack/webpack.git
+      WEBPACK_COMMIT: e9e02fb312a904c04e151ebd08aaa03364a31513
       MADGE_VERSION: 8.0.0
       DPDM_VERSION: 4.3.0
       NODE_VERSION: 24.x
@@ -54,21 +56,31 @@ jobs:
       - name: Build current oxdg
         run: bun run build
 
-      - name: Prepare fixed Hono workspace
+      - name: Prepare fixed benchmark corpora
         shell: bash
         run: |
           set -euo pipefail
           workspace="$RUNNER_TEMP/oxdg-benchmark"
           hono_dir="$workspace/hono"
+          webpack_dir="$workspace/webpack"
           mkdir -p "$workspace"
+
           git init -q "$hono_dir"
           git -C "$hono_dir" remote add origin "$HONO_REPOSITORY"
           git -C "$hono_dir" fetch --depth 1 origin "$HONO_COMMIT"
           git -C "$hono_dir" checkout --detach "$HONO_COMMIT"
           test "$(git -C "$hono_dir" rev-parse HEAD)" = "$HONO_COMMIT"
+
+          git init -q "$webpack_dir"
+          git -C "$webpack_dir" remote add origin "$WEBPACK_REPOSITORY"
+          git -C "$webpack_dir" fetch --depth 1 origin "$WEBPACK_COMMIT"
+          git -C "$webpack_dir" checkout --detach "$WEBPACK_COMMIT"
+          test "$(git -C "$webpack_dir" rev-parse HEAD)" = "$WEBPACK_COMMIT"
+
           {
             echo "BENCHMARK_WORKSPACE=$workspace"
             echo "HONO_DIR=$hono_dir"
+            echo "WEBPACK_DIR=$webpack_dir"
           } >> "$GITHUB_ENV"
 
       - name: Check package and report footprint
@@ -77,11 +89,11 @@ jobs:
       - name: Install comparison tools and save dependency locks
         run: node scripts/benchmark-packages.mjs --workspace "$BENCHMARK_WORKSPACE" --locks benchmark-package-locks --package-footprint benchmark-package-footprint.json
 
-      - name: Run both benchmark workloads and record metadata
-        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --workspace "$BENCHMARK_WORKSPACE" --package-footprint benchmark-package-footprint.json --output .
+      - name: Run benchmark workloads and record metadata
+        run: node scripts/benchmark-runner.mjs --hono-dir "$HONO_DIR" --webpack-dir "$WEBPACK_DIR" --workspace "$BENCHMARK_WORKSPACE" --package-footprint benchmark-package-footprint.json --output .
 
       - name: Generate benchmark report and Actions Summary
-        run: node scripts/benchmark-report.mjs --directory benchmark-directory.json --entrypoint benchmark-entrypoint.json --metadata benchmark-metadata.json --output benchmark-report --summary "$GITHUB_STEP_SUMMARY"
+        run: node scripts/benchmark-report.mjs --hono-directory benchmark-hono-directory.json --hono-entrypoint benchmark-hono-entrypoint.json --webpack-directory benchmark-webpack-directory.json --webpack-entrypoint benchmark-webpack-entrypoint.json --metadata benchmark-metadata.json --output benchmark-report --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -89,8 +101,10 @@ jobs:
           name: benchmark
           if-no-files-found: error
           path: |
-            benchmark-directory.json
-            benchmark-entrypoint.json
+            benchmark-hono-directory.json
+            benchmark-hono-entrypoint.json
+            benchmark-webpack-directory.json
+            benchmark-webpack-entrypoint.json
             benchmark-metadata.json
             benchmark-commands.json
             benchmark-package-footprint.json
