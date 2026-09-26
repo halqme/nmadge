@@ -109,13 +109,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
           node current/scripts/pr-metrics-report.mjs \
             --base-footprint "$RUNNER_TEMP/base-footprint.json" \
             --current-footprint "$RUNNER_TEMP/current-footprint.json" \
             --build "$RUNNER_TEMP/build.json" \
             --analysis "$RUNNER_TEMP/analysis.json" \
-            --base-label "main (\`${{ github.event.pull_request.base.sha }}\`)" \
-            --current-label "PR (\`${{ github.event.pull_request.head.sha }}\`)" \
+            --base-label "main (\`${base_sha:0:7}\`)" \
+            --current-label "PR (\`${head_sha:0:7}\`)" \
             --corpus-commit "$HONO_COMMIT" \
             --output "$RUNNER_TEMP/pr-metrics.md"
           cat "$RUNNER_TEMP/pr-metrics.md" >> "$GITHUB_STEP_SUMMARY"
