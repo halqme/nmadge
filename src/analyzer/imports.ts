@@ -30,9 +30,7 @@ interface LazyParseResult {
   dispose(): void;
 }
 
-type LazyVisitorConstructor = new (
-  visitor: Record<string, (node: unknown) => void>,
-) => unknown;
+type LazyVisitorConstructor = new (visitor: Record<string, (node: unknown) => void>) => unknown;
 
 const experimentalParser = OxcParser as typeof OxcParser & {
   experimentalGetLazyVisitor?: () => LazyVisitorConstructor;
