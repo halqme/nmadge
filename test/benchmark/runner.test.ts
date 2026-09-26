@@ -65,7 +65,10 @@ test("records equivalent workloads, source-file counts, commands, and runner met
     await writeFile(join(hono, "src", "nested", "more.cts"), "export {};\n");
     await writeFile(join(hono, "src", "ignored.json"), "{}\n");
 
-    await writeFile(join(webpack, "lib", "index.js"), 'module.exports = require("./nested/more");\n');
+    await writeFile(
+      join(webpack, "lib", "index.js"),
+      'module.exports = require("./nested/more");\n',
+    );
     await writeFile(join(webpack, "lib", "nested", "more.js"), "module.exports = {};\n");
     await writeFile(join(webpack, "lib", "ignored.json"), "{}\n");
 
