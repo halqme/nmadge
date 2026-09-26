@@ -1,9 +1,10 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
-const toolOrder = ["oxdg", "dpdm", "madge"];
-const toolLabels = { oxdg: "oxdg", dpdm: "dpdm", madge: "Madge" };
+const competitorOrder = ["dpdm", "madge"];
+const competitorLabels = { dpdm: "dpdm", madge: "Madge" };
 const corpusOrder = ["hono", "webpack"];
+const revisionOrder = ["release", "main"];
 
 function optionValue(name) {
   const index = process.argv.indexOf(name);
@@ -28,18 +29,6 @@ function formatDuration(milliseconds) {
   return `${milliseconds.toFixed(1)} ms`;
 }
 
-function formatRelative(ratio) {
-  if (Math.abs(ratio - 1) < 0.005) return "1.00×";
-  return ratio > 1 ? `${ratio.toFixed(2)}× slower` : `${(1 / ratio).toFixed(2)}× faster`;
-}
-
-function comparisonForOxdg(ratio, tool) {
-  if (Math.abs(ratio - 1) < 0.005) return `at parity with ${toolLabels[tool]}`;
-  return ratio > 1
-    ? `${ratio.toFixed(2)}× faster than ${toolLabels[tool]}`
-    : `${(1 / ratio).toFixed(2)}× slower than ${toolLabels[tool]}`;
-}
-
 function formatBytes(bytes) {
   const units = ["B", "KiB", "MiB", "GiB"];
   let value = bytes;
@@ -51,6 +40,23 @@ function formatBytes(bytes) {
   return `${value.toFixed(1)} ${units[unit]}`;
 }
 
+function formatRelative(ratio) {
+  if (Math.abs(ratio - 1) < 0.005) return "1.00×";
+  return ratio > 1 ? `${ratio.toFixed(2)}× slower` : `${(1 / ratio).toFixed(2)}× faster`;
+}
+
+function comparisonForOxdg(ratio, tool) {
+  if (Math.abs(ratio - 1) < 0.005) return `at parity with ${competitorLabels[tool]}`;
+  return ratio > 1
+    ? `${ratio.toFixed(2)}× faster than ${competitorLabels[tool]}`
+    : `${(1 / ratio).toFixed(2)}× slower than ${competitorLabels[tool]}`;
+}
+
+function formatDelta(percent) {
+  if (Math.abs(percent) < 0.05) return "0.0%";
+  return `${percent > 0 ? "+" : ""}${percent.toFixed(1)}%`;
+}
+
 function cpuDetails(cpu) {
   const entries = cpu?.lscpu ?? [];
   const field = (name) =>
@@ -58,7 +64,7 @@ function cpuDetails(cpu) {
   return `${field("Model name")} (${field("CPU(s)")} logical CPUs)`;
 }
 
-function normalizeWorkload(raw, workload, label) {
+function normalizeRawWorkload(raw, workload, label) {
   if (!workload?.commands) throw new Error(`benchmark metadata is missing ${label} commands`);
   const commandToTool = new Map(
     Object.entries(workload.commands).map(([tool, command]) => [command, tool]),
@@ -86,14 +92,17 @@ function normalizeWorkload(raw, workload, label) {
       maxMs: item.max * 1000,
     };
   }
-  for (const tool of toolOrder) {
+  for (const tool of [...revisionOrder, ...competitorOrder]) {
     if (!results[tool]) throw new Error(`${label} benchmark results are missing ${tool}`);
   }
+  return results;
+}
 
-  const baseline = results.oxdg.meanSeconds;
+function revisionWorkload(rawResults, workload, revisionKey) {
+  const oxdg = rawResults[revisionKey];
   const relativePerformance = Object.fromEntries(
-    ["dpdm", "madge"].map((tool) => {
-      const ratio = results[tool].meanSeconds / baseline;
+    competitorOrder.map((tool) => {
+      const ratio = rawResults[tool].meanSeconds / oxdg.meanSeconds;
       return [tool, { ratioToOxdg: ratio, label: formatRelative(ratio) }];
     }),
   );
@@ -102,127 +111,190 @@ function normalizeWorkload(raw, workload, label) {
     input: workload.input,
     extensions: workload.extensions,
     ...(workload.files === undefined ? {} : { files: workload.files }),
-    commands: workload.commands,
-    results,
+    commands: {
+      oxdg: workload.commands[revisionKey],
+      dpdm: workload.commands.dpdm,
+      madge: workload.commands.madge,
+    },
+    results: {
+      oxdg,
+      dpdm: rawResults.dpdm,
+      madge: rawResults.madge,
+    },
     relativePerformance,
   };
 }
 
-function normalizeCorpus(key, metadata, raw) {
+function normalizeCorpus(key, metadata, raw, revisionKey) {
   const corpus = metadata.corpora?.[key];
   if (!corpus) throw new Error(`benchmark metadata is missing corpus: ${key}`);
+  const directoryResults = normalizeRawWorkload(
+    raw.directory,
+    corpus.workloads.directory,
+    `${key} directory`,
+  );
+  const entrypointResults = normalizeRawWorkload(
+    raw.entrypoint,
+    corpus.workloads.entrypoint,
+    `${key} entrypoint`,
+  );
+
   return {
     name: corpus.name,
     profile: corpus.profile,
     repository: corpus.repository,
     commit: corpus.commit,
     workloads: {
-      directory: normalizeWorkload(raw.directory, corpus.workloads.directory, `${key} directory`),
-      entrypoint: normalizeWorkload(
-        raw.entrypoint,
-        corpus.workloads.entrypoint,
-        `${key} entrypoint`,
-      ),
+      directory: revisionWorkload(directoryResults, corpus.workloads.directory, revisionKey),
+      entrypoint: revisionWorkload(entrypointResults, corpus.workloads.entrypoint, revisionKey),
     },
   };
+}
+
+function revisionReport(metadata, raw, revisionKey, generatedAt) {
+  const revision = metadata.revisions?.[revisionKey];
+  if (!revision) throw new Error(`benchmark metadata is missing revision: ${revisionKey}`);
+  return {
+    generatedAt,
+    revision: {
+      key: revisionKey,
+      label: revision.label,
+      source: revision.source,
+      version: revision.version,
+      ...(revision.gitCommit ? { gitCommit: revision.gitCommit } : {}),
+    },
+    environment: {
+      runner: metadata.runner,
+      host: metadata.host,
+      tools: {
+        oxdg: {
+          version: revision.version,
+          ...(revision.gitCommit ? { gitCommit: revision.gitCommit } : {}),
+        },
+        madge: metadata.tools.madge,
+        dpdm: metadata.tools.dpdm,
+      },
+      runtimes: metadata.runtimes,
+    },
+    benchmark: metadata.benchmark,
+    packageFootprint: revision.packageFootprint,
+    corpora: Object.fromEntries(
+      corpusOrder.map((key) => [key, normalizeCorpus(key, metadata, raw[key], revisionKey)]),
+    ),
+  };
+}
+
+function comparisonReport(release, main) {
+  return Object.fromEntries(
+    corpusOrder.map((key) => {
+      const workloads = {};
+      for (const workloadKey of ["directory", "entrypoint"]) {
+        const releaseMs = release.corpora[key].workloads[workloadKey].results.oxdg.meanMs;
+        const mainMs = main.corpora[key].workloads[workloadKey].results.oxdg.meanMs;
+        workloads[workloadKey] = {
+          releaseMs,
+          mainMs,
+          deltaPercent: ((mainMs - releaseMs) / releaseMs) * 100,
+          speedup: releaseMs / mainMs,
+        };
+      }
+      return [key, workloads];
+    }),
+  );
 }
 
 function workloadTableMarkdown(workload) {
   return [
     "| Tool | Mean | Stddev | Median | Min | Max | Relative |",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...toolOrder.map((tool) => {
+    ...["oxdg", ...competitorOrder].map((tool) => {
       const result = workload.results[tool];
       const relative = tool === "oxdg" ? "1.00×" : workload.relativePerformance[tool].label;
-      return `| ${toolLabels[tool]} | ${formatDuration(result.meanMs)} | ${formatDuration(result.stddevMs)} | ${formatDuration(result.medianMs)} | ${formatDuration(result.minMs)} | ${formatDuration(result.maxMs)} | ${relative} |`;
+      const label = tool === "oxdg" ? "oxdg" : competitorLabels[tool];
+      return `| ${label} | ${formatDuration(result.meanMs)} | ${formatDuration(result.stddevMs)} | ${formatDuration(result.medianMs)} | ${formatDuration(result.minMs)} | ${formatDuration(result.maxMs)} | ${relative} |`;
     }),
   ];
 }
 
-function makeMarkdown(report) {
+function makeMarkdown(release, main, comparison) {
   const lines = [
     "# Benchmark",
     "",
-    "Pinned ESM/TypeScript and CommonJS/JavaScript corpora are measured on the same runner.",
+    "The released npm package is the stable benchmark. Development results from main are measured in the same hyperfine runs for direct comparison.",
+    "",
+    `## Released — oxdg v${release.revision.version}`,
     "",
   ];
 
   for (const key of corpusOrder) {
-    const corpus = report.corpora[key];
-    const directory = corpus.workloads.directory;
-    const entrypoint = corpus.workloads.entrypoint;
-    const summary = (workload) =>
-      ["dpdm", "madge"]
-        .map((tool) => comparisonForOxdg(workload.relativePerformance[tool].ratioToOxdg, tool))
-        .join(", ");
-
+    const corpus = release.corpora[key];
     lines.push(
-      `## ${corpus.name} — ${corpus.profile}`,
+      `### ${corpus.name} — ${corpus.profile}`,
       "",
-      `Corpus commit: \`${corpus.commit}\``,
-      `- **Directory-wide:** ${formatDuration(directory.results.oxdg.meanMs)} (${summary(directory)})`,
-      `- **Entrypoint:** ${formatDuration(entrypoint.results.oxdg.meanMs)} (${summary(entrypoint)})`,
+      `- **Directory-wide:** ${formatDuration(corpus.workloads.directory.results.oxdg.meanMs)}`,
+      `- **Entrypoint:** ${formatDuration(corpus.workloads.entrypoint.results.oxdg.meanMs)}`,
       "",
-      "### Directory-wide analysis",
-      "",
-      ...workloadTableMarkdown(directory),
-      "",
-      "### Entrypoint analysis",
-      "",
-      ...workloadTableMarkdown(entrypoint),
-      "",
-      "### Input",
-      "",
-      "| Workload | Input | Extensions | Source files |",
-      "| --- | --- | --- | ---: |",
-      `| Directory-wide | \`${directory.input}\` | ${directory.extensions.join(", ")} | ${directory.files} |`,
-      `| Entrypoint | \`${entrypoint.input}\` | ${entrypoint.extensions.join(", ")} | — |`,
+      ...workloadTableMarkdown(corpus.workloads.directory),
       "",
     );
   }
 
-  const { environment, benchmark, packageFootprint } = report;
-  const image = `${environment.runner.imageOS} / ${environment.runner.imageVersion}`;
   lines.push(
-    "## Environment",
+    `## Development — main @ ${main.revision.gitCommit.slice(0, 12)}`,
     "",
-    "| Property | Value |",
-    "| --- | --- |",
-    `| Runner | ${environment.runner.label} |`,
-    `| Runner image | ${image} |`,
-    `| CPU | ${cpuDetails(environment.host.cpu)} |`,
-    `| Madge | ${environment.tools.madge.version} |`,
-    `| dpdm | ${environment.tools.dpdm.version} |`,
-    `| oxdg | ${environment.tools.oxdg.version} (Git \`${environment.tools.oxdg.gitCommit}\`) |`,
-    `| Node.js | ${environment.runtimes.node.requested} (${environment.runtimes.node.actual}) |`,
-    `| Bun | ${environment.runtimes.bun.requested} (${environment.runtimes.bun.actual}) |`,
-    `| hyperfine | ${benchmark.warmup} warmups, ${benchmark.runs} measured runs |`,
+    "### Since latest release",
+    "",
+    "| Corpus | Workload | Released | Main | Δ |",
+    "| --- | --- | ---: | ---: | ---: |",
+  );
+  for (const key of corpusOrder) {
+    for (const workloadKey of ["directory", "entrypoint"]) {
+      const item = comparison[key][workloadKey];
+      lines.push(
+        `| ${main.corpora[key].name} | ${workloadKey === "directory" ? "Directory-wide" : "Entrypoint"} | ${formatDuration(item.releaseMs)} | ${formatDuration(item.mainMs)} | ${formatDelta(item.deltaPercent)} |`,
+      );
+    }
+  }
+
+  for (const key of corpusOrder) {
+    const corpus = main.corpora[key];
+    lines.push(
+      "",
+      `### ${corpus.name} — ${corpus.profile}`,
+      "",
+      ...workloadTableMarkdown(corpus.workloads.directory),
+    );
+  }
+
+  lines.push(
     "",
     "## Package footprint",
     "",
-    "| Metric | Value |",
-    "| --- | ---: |",
-    `| Packed package | ${formatBytes(packageFootprint.packedSizeBytes)} |`,
-    `| Unpacked package | ${formatBytes(packageFootprint.unpackedSizeBytes)} |`,
-    `| Installed node_modules | ${formatBytes(packageFootprint.nodeModulesSizeBytes)} |`,
+    "| Revision | Packed | Unpacked | Installed node_modules |",
+    "| --- | ---: | ---: | ---: |",
+    `| Released v${release.revision.version} | ${formatBytes(release.packageFootprint.packedSizeBytes)} | ${formatBytes(release.packageFootprint.unpackedSizeBytes)} | ${formatBytes(release.packageFootprint.nodeModulesSizeBytes)} |`,
+    `| Main | ${formatBytes(main.packageFootprint.packedSizeBytes)} | ${formatBytes(main.packageFootprint.unpackedSizeBytes)} | ${formatBytes(main.packageFootprint.nodeModulesSizeBytes)} |`,
+    "",
+    "## Environment",
+    "",
+    `- Runner: ${release.environment.runner.label}`,
+    `- CPU: ${cpuDetails(release.environment.host.cpu)}`,
+    `- Node.js: ${release.environment.runtimes.node.actual}`,
+    `- hyperfine: ${release.benchmark.warmup} warmups, ${release.benchmark.runs} measured runs`,
     "",
   );
   return lines.join("\n");
 }
 
-function makeHtml(report) {
-  const comparisonText = (workload) =>
-    ["dpdm", "madge"]
-      .map((tool) => comparisonForOxdg(workload.relativePerformance[tool].ratioToOxdg, tool))
-      .join(" · ");
-
-  const workloadTable = (title, workload) => {
-    const rows = toolOrder
+function revisionSection(report, id, eyebrow) {
+  const workloadTable = (workload) => {
+    const rows = ["oxdg", ...competitorOrder]
       .map((tool) => {
         const result = workload.results[tool];
+        const label = tool === "oxdg" ? "oxdg" : competitorLabels[tool];
         const relative = tool === "oxdg" ? "baseline" : workload.relativePerformance[tool].label;
         return `<tr class="${tool === "oxdg" ? "primary-row" : ""}">
-          <th scope="row">${escapeHtml(toolLabels[tool])}</th>
+          <th scope="row">${escapeHtml(label)}</th>
           <td>${formatDuration(result.meanMs)}</td>
           <td>± ${formatDuration(result.stddevMs)}</td>
           <td>${formatDuration(result.medianMs)}</td>
@@ -232,72 +304,43 @@ function makeHtml(report) {
         </tr>`;
       })
       .join("");
-    return `<div class="workload">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Workload</p>
-          <h3>${escapeHtml(title)}</h3>
-          <p><code>${escapeHtml(workload.input)}</code>${workload.files ? ` · ${workload.files} files` : ""}</p>
-        </div>
-        <div class="result-callout">
-          <strong>${formatDuration(workload.results.oxdg.meanMs)}</strong>
-          <span>${escapeHtml(comparisonText(workload))}</span>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Tool</th><th>Mean</th><th>Stddev</th><th>Median</th><th>Min</th><th>Max</th><th>Relative</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>`;
+    return `<div class="table-wrap"><table>
+      <thead><tr><th>Tool</th><th>Mean</th><th>Stddev</th><th>Median</th><th>Min</th><th>Max</th><th>Relative</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
   };
 
-  const corpusSection = (key) => {
-    const corpus = report.corpora[key];
-    return `<section class="panel corpus-panel">
-      <div class="corpus-heading">
-        <div>
-          <p class="eyebrow">${escapeHtml(corpus.profile)}</p>
-          <h2>${escapeHtml(corpus.name)}</h2>
-          <p>Pinned at <code>${escapeHtml(corpus.commit.slice(0, 12))}</code></p>
-        </div>
-        <div class="corpus-stats">
-          <div><span>Directory</span><strong>${formatDuration(corpus.workloads.directory.results.oxdg.meanMs)}</strong></div>
-          <div><span>Entrypoint</span><strong>${formatDuration(corpus.workloads.entrypoint.results.oxdg.meanMs)}</strong></div>
-        </div>
-      </div>
-      ${workloadTable("Directory-wide analysis", corpus.workloads.directory)}
-      ${workloadTable("Entrypoint analysis", corpus.workloads.entrypoint)}
-    </section>`;
-  };
+  return `<section class="revision" id="${id}">
+    <div class="revision-heading">
+      <div><p class="eyebrow">${escapeHtml(eyebrow)}</p><h2>${escapeHtml(report.revision.label)}</h2>
+      <p>${report.revision.gitCommit ? `Commit <code>${escapeHtml(report.revision.gitCommit.slice(0, 12))}</code>` : "Published npm package"}</p></div>
+    </div>
+    ${corpusOrder
+      .map((key) => {
+        const corpus = report.corpora[key];
+        return `<article class="panel corpus-panel">
+          <div class="corpus-heading"><div><p class="eyebrow">${escapeHtml(corpus.profile)}</p><h3>${escapeHtml(corpus.name)}</h3><p><code>${escapeHtml(corpus.commit.slice(0, 12))}</code></p></div>
+          <div class="corpus-stats"><div><span>Directory</span><strong>${formatDuration(corpus.workloads.directory.results.oxdg.meanMs)}</strong></div><div><span>Entrypoint</span><strong>${formatDuration(corpus.workloads.entrypoint.results.oxdg.meanMs)}</strong></div></div></div>
+          <div class="workload"><h4>Directory-wide analysis</h4>${workloadTable(corpus.workloads.directory)}</div>
+          <div class="workload"><h4>Entrypoint analysis</h4>${workloadTable(corpus.workloads.entrypoint)}</div>
+        </article>`;
+      })
+      .join("")}
+  </section>`;
+}
 
-  const commandDetails = corpusOrder
-    .map((key) => {
-      const corpus = report.corpora[key];
-      return `<div class="command-group">
-        <h3>${escapeHtml(corpus.name)}</h3>
-        <p>${escapeHtml(corpus.profile)} · <code>${escapeHtml(corpus.commit)}</code></p>
-        ${["directory", "entrypoint"]
-          .map((workloadKey) => {
-            const workload = corpus.workloads[workloadKey];
-            return `<h4>${workloadKey === "directory" ? "Directory-wide" : "Entrypoint"}</h4>
-              <ul class="commands">
-                ${toolOrder
-                  .map(
-                    (tool) =>
-                      `<li><span>${escapeHtml(toolLabels[tool])}</span><code>${escapeHtml(workload.commands[tool])}</code></li>`,
-                  )
-                  .join("")}
-              </ul>`;
-          })
-          .join("")}
-      </div>`;
-    })
+function makeHtml(release, main, comparison, generatedAt) {
+  const sinceCards = corpusOrder
+    .flatMap((key) =>
+      ["directory", "entrypoint"].map((workloadKey) => {
+        const item = comparison[key][workloadKey];
+        const faster = item.deltaPercent < 0;
+        return `<div class="delta-card"><span>${escapeHtml(main.corpora[key].name)} · ${workloadKey === "directory" ? "directory" : "entrypoint"}</span>
+          <strong>${formatDelta(item.deltaPercent)}</strong>
+          <small>${formatDuration(item.releaseMs)} → ${formatDuration(item.mainMs)}${faster ? ` · ${item.speedup.toFixed(2)}× as fast` : ""}</small></div>`;
+      }),
+    )
     .join("");
-
-  const { environment, benchmark, packageFootprint, generatedAt } = report;
-  const runnerImage = `${environment.runner.imageOS} / ${environment.runner.imageVersion}`;
 
   return `<!doctype html>
 <html lang="en">
@@ -307,65 +350,47 @@ function makeHtml(report) {
 <meta name="color-scheme" content="light dark">
 <title>oxdg benchmark</title>
 <style>
-:root {
-  color-scheme: light dark;
-  --bg:#f7f7f8;--surface:#fff;--surface-soft:#f1f3f5;--text:#18181b;
-  --muted:#666a73;--border:#dfe2e6;--accent:#315efb;--accent-soft:#eef2ff;--code:#f4f4f5;
-  font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-}
-@media (prefers-color-scheme:dark){:root{--bg:#0d0f12;--surface:#15181d;--surface-soft:#1c2026;--text:#f2f3f5;--muted:#a7adb7;--border:#2c323b;--accent:#8ca8ff;--accent-soft:#1c274a;--code:#20242a}}
-*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text)}
-main{width:min(1120px,calc(100% - 2rem));margin:0 auto;padding:3.5rem 0 5rem}
-a{color:var(--accent)} code{font:.92em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);padding:.12rem .3rem;border-radius:.3rem}
-.hero{margin-bottom:2rem}.hero h1{margin:0;font-size:clamp(2rem,5vw,3.4rem);line-height:1.05;letter-spacing:-.04em}
-.hero>p{max-width:760px;margin:.85rem 0 0;color:var(--muted);font-size:1.05rem}
-.hero-meta{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin-top:1rem;color:var(--muted);font-size:.9rem}
-.overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;margin:2rem 0}
-.overview-card,.panel{background:var(--surface);border:1px solid var(--border);border-radius:.9rem}
-.overview-card{padding:1.1rem}.overview-card span{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
-.overview-card h2{margin:.2rem 0}.overview-metrics{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.8rem}
-.overview-metrics div{background:var(--surface-soft);padding:.7rem;border-radius:.55rem}.overview-metrics strong{display:block;font-size:1.2rem}
-.panel{margin:1rem 0;padding:1.25rem}.corpus-heading,.section-heading{display:flex;justify-content:space-between;gap:2rem;align-items:flex-start}
-.corpus-heading{padding-bottom:1rem;border-bottom:1px solid var(--border)}.corpus-heading h2,.section-heading h3{margin:.05rem 0 .25rem}
-.corpus-heading p,.section-heading p{margin:0;color:var(--muted)}.eyebrow{margin:0;color:var(--accent)!important;font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-.corpus-stats{display:flex;gap:1rem}.corpus-stats div{text-align:right}.corpus-stats span,.result-callout span{display:block;color:var(--muted);font-size:.8rem}.corpus-stats strong,.result-callout strong{display:block;font-size:1.2rem}
-.workload{padding-top:1.25rem}.section-heading{margin-bottom:.8rem}.result-callout{text-align:right;min-width:210px}
-.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:.65rem}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap}
-th,td{padding:.65rem .75rem;border-bottom:1px solid var(--border);text-align:right}th:first-child,td:first-child{text-align:left}
-thead th{background:var(--surface-soft);color:var(--muted);font-size:.8rem;font-weight:600}tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
-.primary-row{background:var(--accent-soft)}.primary-row th{color:var(--accent)}
-.metric-grid,.meta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
-.metric-grid div,.meta-grid div{padding:.8rem;background:var(--surface-soft);border-radius:.55rem}.metric-grid span,.meta-grid span{display:block;color:var(--muted);font-size:.78rem}
-details.panel summary{cursor:pointer;font-weight:650}.details-body{margin-top:1.2rem}.commands{padding:0;list-style:none}.commands li{display:grid;grid-template-columns:80px 1fr;gap:.75rem;margin:.4rem 0}.commands span{color:var(--muted)}.commands code{overflow-wrap:anywhere;white-space:normal}
-footer{margin-top:1.5rem;color:var(--muted);font-size:.85rem}
-@media(max-width:760px){main{width:min(100% - 1rem,1120px);padding-top:2rem}.overview-grid,.metric-grid,.meta-grid{grid-template-columns:1fr}.corpus-heading,.section-heading{display:block}.corpus-stats{margin-top:.8rem}.corpus-stats div,.result-callout{text-align:left}.result-callout{min-width:0;margin-top:.65rem}}
+:root{color-scheme:light dark;--bg:#f7f7f8;--surface:#fff;--soft:#f1f3f5;--text:#18181b;--muted:#666a73;--border:#dfe2e6;--accent:#315efb;--accent-soft:#eef2ff;font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+@media(prefers-color-scheme:dark){:root{--bg:#0d0f12;--surface:#15181d;--soft:#1c2026;--text:#f2f3f5;--muted:#a7adb7;--border:#2c323b;--accent:#8ca8ff;--accent-soft:#1c274a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}main{width:min(1120px,calc(100% - 2rem));margin:auto;padding:3.5rem 0 5rem}a{color:var(--accent)}code{font:.92em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);padding:.12rem .3rem;border-radius:.3rem}
+.hero h1{margin:0;font-size:clamp(2rem,5vw,3.4rem);line-height:1.05;letter-spacing:-.04em}.hero>p{max-width:780px;color:var(--muted);font-size:1.05rem}.eyebrow{margin:0;color:var(--accent)!important;font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.revision-nav{display:flex;gap:.6rem;margin:1.4rem 0 2rem}.revision-nav a{text-decoration:none;padding:.55rem .8rem;border:1px solid var(--border);border-radius:.55rem;background:var(--surface)}
+.overview,.delta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;margin:1.4rem 0}.overview-card,.delta-card,.panel{background:var(--surface);border:1px solid var(--border);border-radius:.9rem}.overview-card,.delta-card{padding:1rem}.overview-card span,.delta-card span,.delta-card small{display:block;color:var(--muted)}.overview-card strong,.delta-card strong{display:block;font-size:1.5rem;margin:.15rem 0}
+.revision{margin-top:3rem}.revision-heading{margin-bottom:1rem}.revision-heading h2{margin:.15rem 0;font-size:2rem}.revision-heading p{color:var(--muted)}
+.panel{margin:1rem 0;padding:1.25rem}.corpus-heading{display:flex;justify-content:space-between;gap:2rem;align-items:flex-start;padding-bottom:1rem;border-bottom:1px solid var(--border)}.corpus-heading h3{margin:.05rem 0 .25rem;font-size:1.35rem}.corpus-heading p{margin:0;color:var(--muted)}
+.corpus-stats{display:flex;gap:1rem}.corpus-stats div{text-align:right}.corpus-stats span{display:block;color:var(--muted);font-size:.8rem}.corpus-stats strong{font-size:1.2rem}.workload{padding-top:1rem}.workload h4{margin:.2rem 0 .7rem}
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:.65rem}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;white-space:nowrap}th,td{padding:.65rem .75rem;border-bottom:1px solid var(--border);text-align:right}th:first-child,td:first-child{text-align:left}thead th{background:var(--soft);color:var(--muted);font-size:.8rem}tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}.primary-row{background:var(--accent-soft)}.primary-row th{color:var(--accent)}
+.footprint-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}.footprint-grid>div{background:var(--soft);border-radius:.65rem;padding:.8rem}.footprint-grid span{display:block;color:var(--muted);font-size:.8rem}
+details.panel summary{cursor:pointer;font-weight:650}footer{margin-top:1.5rem;color:var(--muted);font-size:.85rem}
+@media(max-width:760px){main{width:min(100% - 1rem,1120px);padding-top:2rem}.overview,.delta-grid,.footprint-grid{grid-template-columns:1fr}.corpus-heading{display:block}.corpus-stats{margin-top:.8rem}.corpus-stats div{text-align:left}}
 </style>
 </head>
 <body><main>
-<header class="hero">
-  <p class="eyebrow">Performance report</p>
-  <h1>oxdg benchmark</h1>
-  <p>Dependency-graph performance across pinned modern ESM/TypeScript and CommonJS/JavaScript corpora. Results are measurements from this runner, not universal performance claims.</p>
-  <div class="hero-meta"><span>Generated ${escapeHtml(generatedAt)}</span><span>Node ${escapeHtml(environment.runtimes.node.actual)}</span><span>${benchmark.warmup} warmups · ${benchmark.runs} runs</span></div>
-</header>
-<section class="overview-grid" aria-label="Corpus overview">
-${corpusOrder
-  .map((key) => {
-    const corpus = report.corpora[key];
-    return `<div class="overview-card"><span>${escapeHtml(corpus.profile)}</span><h2>${escapeHtml(corpus.name)}</h2><div class="overview-metrics"><div><span>Directory</span><strong>${formatDuration(corpus.workloads.directory.results.oxdg.meanMs)}</strong></div><div><span>Entrypoint</span><strong>${formatDuration(corpus.workloads.entrypoint.results.oxdg.meanMs)}</strong></div></div></div>`;
-  })
-  .join("")}
+<header class="hero"><p class="eyebrow">Performance report</p><h1>oxdg benchmark</h1>
+<p>The released npm package is the stable reference. Development main is measured in the same runs so upcoming performance changes remain visible without being presented as released performance.</p>
+<div class="revision-nav"><a href="#released">Released v${escapeHtml(release.revision.version)}</a><a href="#development">Development main</a></div></header>
+
+<section class="overview">
+<div class="overview-card"><span>Released</span><strong>v${escapeHtml(release.revision.version)}</strong><small>npm package · stable benchmark</small></div>
+<div class="overview-card"><span>Development</span><strong>${escapeHtml(main.revision.gitCommit.slice(0, 12))}</strong><small>main commit · same runner</small></div>
 </section>
-${corpusOrder.map(corpusSection).join("")}
-<section class="panel">
-  <div class="section-heading"><div><p class="eyebrow">Package</p><h3>Footprint</h3></div><div class="result-callout"><strong>${formatBytes(packageFootprint.unpackedSizeBytes)}</strong><span>unpacked</span></div></div>
-  <div class="metric-grid"><div><span>Packed</span><strong>${formatBytes(packageFootprint.packedSizeBytes)}</strong></div><div><span>Unpacked</span><strong>${formatBytes(packageFootprint.unpackedSizeBytes)}</strong></div><div><span>Installed node_modules</span><strong>${formatBytes(packageFootprint.nodeModulesSizeBytes)}</strong></div></div>
-</section>
-<details class="panel"><summary>Methodology and environment</summary><div class="details-body">
-  <div class="meta-grid"><div><span>Runner</span><strong>${escapeHtml(environment.runner.label)}</strong></div><div><span>Runner image</span><strong>${escapeHtml(runnerImage)}</strong></div><div><span>CPU</span><strong>${escapeHtml(cpuDetails(environment.host.cpu))}</strong></div><div><span>oxdg</span><strong>${escapeHtml(environment.tools.oxdg.version)} · ${escapeHtml(environment.tools.oxdg.gitCommit.slice(0, 12))}</strong></div><div><span>Comparison tools</span><strong>dpdm ${escapeHtml(environment.tools.dpdm.version)} · Madge ${escapeHtml(environment.tools.madge.version)}</strong></div><div><span>Runtimes</span><strong>Node ${escapeHtml(environment.runtimes.node.actual)} · Bun ${escapeHtml(environment.runtimes.bun.actual)}</strong></div></div>
-  ${commandDetails}
-</div></details>
-<footer><a href="latest.json">Normalized JSON</a>${environment.runner.workflowRunId ? ` · Workflow run ${escapeHtml(environment.runner.workflowRunId)}` : ""}</footer>
+
+<section><p class="eyebrow">Development vs released</p><h2>Since latest release</h2><div class="delta-grid">${sinceCards}</div></section>
+
+${revisionSection(release, "released", "Stable")}
+${revisionSection(main, "development", "Development")}
+
+<section class="panel"><p class="eyebrow">Package</p><h2>Footprint</h2>
+<div class="footprint-grid">
+<div><span>Released v${escapeHtml(release.revision.version)}</span><strong>${formatBytes(release.packageFootprint.unpackedSizeBytes)}</strong><small>unpacked · ${formatBytes(release.packageFootprint.packedSizeBytes)} packed · ${formatBytes(release.packageFootprint.nodeModulesSizeBytes)} installed</small></div>
+<div><span>Main</span><strong>${formatBytes(main.packageFootprint.unpackedSizeBytes)}</strong><small>unpacked · ${formatBytes(main.packageFootprint.packedSizeBytes)} packed · ${formatBytes(main.packageFootprint.nodeModulesSizeBytes)} installed</small></div>
+</div></section>
+
+<details class="panel"><summary>Methodology and environment</summary>
+<p>Released oxdg, main oxdg, dpdm, and Madge are executed in the same hyperfine runs against pinned Hono and Webpack corpora.</p>
+<p>Runner: ${escapeHtml(release.environment.runner.label)} · CPU: ${escapeHtml(cpuDetails(release.environment.host.cpu))} · Node ${escapeHtml(release.environment.runtimes.node.actual)} · ${release.benchmark.warmup} warmups / ${release.benchmark.runs} measured runs.</p>
+<p>Generated ${escapeHtml(generatedAt)}.</p></details>
+<footer><a href="release.json">Released JSON</a> · <a href="main.json">Main JSON</a> · <a href="latest.json">Combined JSON</a></footer>
 </main></body></html>`;
 }
 
@@ -381,53 +406,56 @@ const raw = {
   },
 };
 
-const report = {
-  generatedAt: new Date().toISOString(),
-  environment: {
-    runner: metadata.runner,
-    host: metadata.host,
-    tools: metadata.tools,
-    runtimes: metadata.runtimes,
-  },
-  benchmark: metadata.benchmark,
-  packageFootprint: metadata.packageFootprint,
-  corpora: Object.fromEntries(
-    corpusOrder.map((key) => [key, normalizeCorpus(key, metadata, raw[key])]),
-  ),
+const generatedAt = new Date().toISOString();
+const release = revisionReport(metadata, raw, "release", generatedAt);
+const main = revisionReport(metadata, raw, "main", generatedAt);
+const comparison = comparisonReport(release, main);
+const combined = {
+  schemaVersion: 2,
+  generatedAt,
+  release,
+  main,
+  sinceRelease: comparison,
 };
 
 const outputDirectory = resolve(optionValue("--output") ?? "benchmark-report");
 const summaryPath = optionValue("--summary")
   ? resolve(optionValue("--summary"))
   : process.env.GITHUB_STEP_SUMMARY;
-const summary = makeMarkdown(report);
+const summary = makeMarkdown(release, main, comparison);
 
-const honoDirectory = report.corpora.hono.workloads.directory;
-const honoEntrypoint = report.corpora.hono.workloads.entrypoint;
-const webpackDirectory = report.corpora.webpack.workloads.directory;
+const releaseHono = release.corpora.hono.workloads.directory;
+const releaseWebpack = release.corpora.webpack.workloads.directory;
+const mainHono = main.corpora.hono.workloads.directory;
 const badges = {
   "runtime.json": {
     schemaVersion: 1,
-    label: "Hono benchmark",
-    message: `${Math.round(honoDirectory.results.oxdg.meanMs)} ms`,
+    label: `Hono · oxdg v${release.revision.version}`,
+    message: `${Math.round(releaseHono.results.oxdg.meanMs)} ms`,
     color: "blue",
   },
   "entrypoint.json": {
     schemaVersion: 1,
-    label: "Hono entrypoint",
-    message: `${Math.round(honoEntrypoint.results.oxdg.meanMs)} ms`,
+    label: `Hono entrypoint · v${release.revision.version}`,
+    message: `${Math.round(release.corpora.hono.workloads.entrypoint.results.oxdg.meanMs)} ms`,
     color: "blue",
   },
   "vs-madge.json": {
     schemaVersion: 1,
-    label: "Hono vs Madge",
-    message: `${honoDirectory.relativePerformance.madge.ratioToOxdg.toFixed(2)}× faster`,
+    label: `Hono · v${release.revision.version} vs Madge`,
+    message: `${releaseHono.relativePerformance.madge.ratioToOxdg.toFixed(2)}× faster`,
     color: "blue",
   },
   "webpack-runtime.json": {
     schemaVersion: 1,
-    label: "Webpack benchmark",
-    message: `${Math.round(webpackDirectory.results.oxdg.meanMs)} ms`,
+    label: `Webpack · oxdg v${release.revision.version}`,
+    message: `${Math.round(releaseWebpack.results.oxdg.meanMs)} ms`,
+    color: "blue",
+  },
+  "main-runtime.json": {
+    schemaVersion: 1,
+    label: "Hono · oxdg main",
+    message: `${Math.round(mainHono.results.oxdg.meanMs)} ms`,
     color: "blue",
   },
 };
@@ -435,14 +463,18 @@ const badges = {
 await mkdir(join(outputDirectory, "badges"), { recursive: true });
 await Promise.all([
   writeFile(join(outputDirectory, "summary.md"), summary, "utf8"),
-  writeFile(join(outputDirectory, "latest.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8"),
-  writeFile(join(outputDirectory, "index.html"), makeHtml(report), "utf8"),
+  writeFile(join(outputDirectory, "release.json"), `${JSON.stringify(release, null, 2)}\n`, "utf8"),
+  writeFile(join(outputDirectory, "main.json"), `${JSON.stringify(main, null, 2)}\n`, "utf8"),
+  writeFile(join(outputDirectory, "latest.json"), `${JSON.stringify(combined, null, 2)}\n`, "utf8"),
+  writeFile(join(outputDirectory, "index.html"), makeHtml(release, main, comparison, generatedAt), "utf8"),
   ...Object.entries(badges).map(([name, badge]) =>
     writeFile(join(outputDirectory, "badges", name), `${JSON.stringify(badge, null, 2)}\n`, "utf8"),
   ),
 ]);
+
 if (summaryPath) {
   await mkdir(dirname(summaryPath), { recursive: true });
   await appendFile(summaryPath, `${summary}\n`, "utf8");
 }
+
 console.log(`Wrote benchmark report to ${outputDirectory}`);
