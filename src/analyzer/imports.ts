@@ -115,8 +115,15 @@ function extractSourceImports(
     }
   }
 
-  walk(result.program, {
-    enter(node) {
+  const needsAstWalk =
+    result.errors.length > 0 ||
+    result.module.dynamicImports.length > 0 ||
+    source.includes("require") ||
+    source.includes("\\u");
+
+  if (needsAstWalk) {
+    walk(result.program, {
+      enter(node) {
       if (node.type === "ImportExpression") {
         const importSource = node.source;
         if (importSource.type === "Literal" && typeof importSource.value === "string") {
@@ -154,7 +161,8 @@ function extractSourceImports(
         );
       }
     },
-  });
+    });
+  }
 
   references.sort((left, right) => {
     const startOrder = left.start - right.start;
