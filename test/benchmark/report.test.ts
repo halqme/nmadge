@@ -255,7 +255,9 @@ test("rejects incomplete revision results", async () => {
       dpdm: 2,
       madge: 4,
     });
-    invalid.results = invalid.results.filter((item) => item.command !== webpackCommands.directory.main);
+    invalid.results = invalid.results.filter(
+      (item) => item.command !== webpackCommands.directory.main,
+    );
     await writeInput(inputs, "webpack-directory.json", invalid);
 
     const result = generate(inputs, output);
