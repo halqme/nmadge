@@ -54,9 +54,7 @@ const baseFootprint = JSON.parse(
 const currentFootprint = JSON.parse(
   await readFile(resolve(requiredOption("--current-footprint")), "utf8"),
 );
-const build = hyperfinePair(
-  JSON.parse(await readFile(resolve(requiredOption("--build")), "utf8")),
-);
+const build = hyperfinePair(JSON.parse(await readFile(resolve(requiredOption("--build")), "utf8")));
 const analysis = hyperfinePair(
   JSON.parse(await readFile(resolve(requiredOption("--analysis")), "utf8")),
 );
